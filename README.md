@@ -111,6 +111,11 @@
 
   The OpenAL audio driver does not support 24 bit yet. On MacOS this is the default and only supported driver. On Linus this driver can be used (OpenAL libraries need to be installed though) when no PulseAudio is found on the system. Also, [24 bit as distribution format is silly](https://web.archive.org/web/20190103133529/http://people.xiph.org/~xiphmont/demo/neil-young.html).
 
+* **Why is ZAP on Linux using slightly more CPU than on the other OS?**
+  When using the PulseAudio driver (default when PulseAudio is found on the system), I need to tick the event loop faster to prevent strange PulseAudio crashes. This is not the case with the OpenAL driver (but see above).
+
 * **Why is fullscreen mode only working on the first display in a multi-display setup?**
 
   Because Tkinter is not really aware of multiple displays. Currently, I could only make fullscreen mode use the current display on Windows.
+  
+
