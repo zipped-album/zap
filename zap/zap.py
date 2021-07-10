@@ -16,11 +16,17 @@ import random
 import colorsys
 import platform
 import dateutil.parser
-import tkinter as tk
-import tkinter.ttk as ttk
-import tkinter.font as tkfont
-from tkinter import scrolledtext
-from tkinter import filedialog
+try:
+    import tkinter as tk
+    import tkinter.ttk as ttk
+    import tkinter.font as tkfont
+    from tkinter import scrolledtext
+    from tkinter import filedialog
+except ImportError:
+    print("Error: Tkinter not found!")
+except ModuleNotFoundError:
+    print("Error: Python not configured for Tk!")
+    sys.exit()
 
 from PIL import ImageTk, Image
 
