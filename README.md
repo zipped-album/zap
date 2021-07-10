@@ -34,6 +34,12 @@
    ```
    pipx install git+https://github.com/zipped-album/zap.git
    ```
+
+4. **Run ZAP**
+   
+   ```
+   zap
+   ```
    
 ### MacOS
 
@@ -60,7 +66,12 @@
    ```
    pipx install git+https://github.com/zipped-album/zap.git
    ```
+
+5. **Run ZAP**
    
+   ```
+   zap
+   ```
 
 ### Windows
 
@@ -88,6 +99,11 @@
    pipx install git+https://github.com/zipped-album/zap.git
    ```
 
+5. **Run ZAP**
+   
+   ```
+   zap
+   ```
 
 ## FAQ
 
