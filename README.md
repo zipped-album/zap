@@ -1,11 +1,27 @@
-# ZAP
-**Zipped Album Player** - A simple cross-platform player for the [Zipped Album](https://github.com/zipped-album/zlbm) format
+# Zipped Album Player (ZAP)
 
- <img width="1136" alt="ZAP_MacOS_Screenshot" src="https://user-images.githubusercontent.com/2971539/125173823-86b6d980-e1c1-11eb-87c4-cdd2c33956a0.png">
+***A simple Python-based cross-platform player for the [Zipped Album](https://github.com/zipped-album/zlbm) format***
+
+<img width="1136" alt="ZAP_MacOS_Screenshot" src="https://user-images.githubusercontent.com/2971539/125360695-8c9cee00-e36c-11eb-86dc-e80de0b0cf35.png">
+
+## Features
+
+* MacOS, Windows and Linux support
+* Digital booklet slideshow
+* Keyboard navigation (with Vi-like alternatives)
+* Fullscreen mode
+
 
 ## Installation
 
-### Linux
+ZAP can be installed with [pipx](https://pypa.github.io/pipx/):
+```
+pipx install zap
+```
+
+### Detailed instructions
+
+#### Linux
 
 1. **Make sure you have Python 3 with Tkinter support installed**
 
@@ -32,16 +48,10 @@
 3. **Install ZAP**
 
    ```
-   pipx install git+https://github.com/zipped-album/zap.git
-   ```
-
-4. **Run ZAP**
-   
-   ```
-   zap
+   pipx install zap
    ```
    
-### MacOS
+#### MacOS
 
 1. **Make sure you have Python 3 with Tkinter support installed***
    
@@ -64,16 +74,10 @@
 4. **Install ZAP**
 
    ```
-   pipx install git+https://github.com/zipped-album/zap.git
+   pipx install zap
    ```
 
-5. **Run ZAP**
-   
-   ```
-   zap
-   ```
-
-### Windows
+#### Windows
 
 1. **Make sure you have Python 3 with Tkinter support installed***
    
@@ -96,20 +100,38 @@
 4. **Install ZAP**
 
    ```
-   pipx install git+https://github.com/zipped-album/zap.git
+   pipx install zap
    ```
 
-5. **Run ZAP**
-   
-   ```
-   zap
-   ```
+## Usage
+
+After successful installation ZAP can be started by calling the command `zap`.
+
+### Keyboard navigation
+
+```
+Play/Pause:                               Return           |      Space
+Select next track:                        Down             |      j    
+Select previous track:                    Up               |      k    
+Select first track:                       Home             |      gg   
+Seek forward:                             Right            |      l    
+Seek backward:                            Left             |      h    
+Seek to beginning:                        Numpad 0         |      0    
+Show next slide:                          Shift-Right      |      L    
+Show previous slide:                      Shift-Left       |      H    
+Increase volume:                          Shift-Right      |      K    
+Decrease volume:                          Shift-Left       |      J    
+```
 
 ## FAQ
 
+* **Where can I find music in a format ZAP plays?**
+
+   ZAP plays [Zipped Albums](https://github.com/zipped-album/zlbm), a simple one-file format for digital audio. Basically, these are ZIP archives of FLAC or Opus files with an optional digital booklet and playlist. Albums downloaded from [Bandcamp]in FLAC format, for instance, are compatible, but you can also easily create them yourself from your existing music.
+      
 * **Why is there no sound when playing 24 bit files?**
 
-  The OpenAL audio driver does not support 24 bit yet. On MacOS this is the default and only supported driver. On Linus this driver can be used (OpenAL libraries need to be installed though) when no PulseAudio is found on the system. Also, [24 bit as distribution format is silly](https://web.archive.org/web/20190103133529/http://people.xiph.org/~xiphmont/demo/neil-young.html).
+  The OpenAL audio driver does not support 24 bit yet. On MacOS this is the default and only supported driver. On Linux this driver can be used (OpenAL libraries need to be installed though) when no PulseAudio is found on the system. However, keep in mind that [24 bit as distribution format is silly](https://web.archive.org/web/20190103133529/http://people.xiph.org/~xiphmont/demo/neil-young.html).
 
 * **Why is ZAP on Linux using slightly more CPU than on the other OS?**
   When using the PulseAudio driver (default when PulseAudio is found on the system), I need to tick the event loop faster to prevent strange PulseAudio crashes. This is not the case with the OpenAL driver (but see above).
