@@ -605,16 +605,16 @@ class MainApplication(ttk.Frame):
         self.parent.bind("<Return>", lambda e: playpause())
         self.parent.bind("<space>", lambda e: playpause())
 
-        def switch_image(step, update_arrows):
+        def switch_image(step):
             if self.current_image is not None:
                 new_image = self.current_image + step
                 if 0 <= new_image < self.loaded_album.nr_of_slides:
-                    self.show_image(new_image, update_arrows)
+                    self.show_image(new_image)
 
-        self.parent.bind(f"<Shift-Right>", lambda e: switch_image(1, False))
-        self.parent.bind(f"<L>", lambda e: switch_image(1, False))
-        self.parent.bind(f"<Shift-Left>", lambda e: switch_image(-1, False))
-        self.parent.bind(f"<H>", lambda e: switch_image(-1, False))
+        self.parent.bind(f"<Shift-Right>", lambda e: switch_image(1))
+        self.parent.bind(f"<L>", lambda e: switch_image(1))
+        self.parent.bind(f"<Shift-Left>", lambda e: switch_image(-1))
+        self.parent.bind(f"<H>", lambda e: switch_image(-1))
 
         # Mouse (specific widgets)
         self.canvas.bind("<Enter>", lambda e: self.add_arrows())
@@ -681,12 +681,14 @@ class MainApplication(ttk.Frame):
                                    fill="white",
                                    width=0)
             self.canvas.itemconfig(self.canvas_left_fg, fill="black")
+        self.arrows_visible = True
 
     def remove_arrows(self):
         self.canvas.itemconfig(self.canvas_right_bg, fill="", width=0)
         self.canvas.itemconfig(self.canvas_right_fg, fill="")
         self.canvas.itemconfig(self.canvas_left_bg, fill="", width=0)
         self.canvas.itemconfig(self.canvas_left_fg, fill="")
+        self.arrows_visible = False
 
     def wait_cover_image(self, *args):
         while True:
@@ -694,7 +696,7 @@ class MainApplication(ttk.Frame):
                 self.show_image(0)
                 break
 
-    def show_image(self, nr=0, update_arrows=True):
+    def show_image(self, nr=0):
         try:
             if nr is None:
                 nr = 0
@@ -731,7 +733,7 @@ class MainApplication(ttk.Frame):
                 self.canvas_arrow_left = True
             else:
                 self.canvas_arrow_left = False
-            if update_arrows:
+            if self.arrows_visible:
                 self.remove_arrows()
                 self.add_arrows()
         except:
@@ -777,7 +779,7 @@ class MainApplication(ttk.Frame):
             return
 
         self.loaded_album.prepare_booklet_pages(self.wait_cover_image)
-        self.show_image(update_arrows=True)
+        self.show_image()
         self.title["text"] = self.loaded_album.title
         self.artist["text"] = self.loaded_album.artist
         year = self.loaded_album.year
@@ -1045,7 +1047,7 @@ class MainApplication(ttk.Frame):
         self.parent.columnconfigure(0, weight=int(fullscreen))
         self.parent.rowconfigure(0, weight=int(fullscreen))
         self.parent.resizable(fullscreen, fullscreen)
-        root.geometry(f"{width}x{height}")
+        self.parent.geometry(f"{width}x{height}")
         self.fullscreen = fullscreen
 
     def toggle_repeat_album(self):
