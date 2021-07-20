@@ -122,11 +122,15 @@ Decrease volume:                          Shift-Left       |      J
 ```
 
 ## FAQ
-
+  
 * **Where can I find music in a format ZAP plays?**
 
    ZAP plays [Zipped Albums](https://github.com/zipped-album/zlbm), a simple one-file format for digital audio. Basically, these are ZIP archives of FLAC or Opus files with an optional digital booklet and playlist. Albums downloaded from [Bandcamp](https://bandcamp.com) in FLAC format, for instance, are compatible, but you can also easily create them yourself from your existing music.
       
+* **Couldn't you provide simple one-click installers/executables for ZAP?**
+
+  Yes, I could use something like PyInstaller to do that. I might do that at some point. For now, I think pipx is a good solution.
+
 * **Why do I not hear any sound when playing an album in ZAP?**
 
   If you are on Linux, you need to have either OpenAL (reccomended) or PulseAudio installed. PulseAudio comes as default in most distros these days. OpenAL can be installed with your package manager (for instance on Debian-based distros with `apt install libopenal1`).
