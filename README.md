@@ -139,6 +139,10 @@ Decrease volume:                          Shift-Left       |      J
 
   OpenAL does not support bit depths higher than 16, and ZAP will resample to 16 if tracks have higher bit depths. This process, however, might lead to quantization noise. Please also note that [distribution/listening formats do not benefit from bit depths higher than 16](https://web.archive.org/web/20190103133529/http://people.xiph.org/~xiphmont/demo/neil-young.html). I hence suggest to try to obtain properly dithered 16 bit versions whenever possible.
 
+* **Couldn't ZAP dither when resampling to 16 bits?**
+
+  Yes, I tried that, but I ran into [issues with Pyglet's FFmpeg wrapper](https://github.com/pyglet/pyglet/issues/419). If you know how to make this work, feel free to submit a pull request.
+  
 * **Why is fullscreen mode only working on the first display in a multi-display setup?**
 
   Because Tkinter is not really aware of multiple displays. Currently, I could only make fullscreen mode use the current display on Windows.
