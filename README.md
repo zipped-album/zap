@@ -21,36 +21,6 @@ pipx install Zipped-Album-Player
 
 ### Detailed instructions
 
-#### Linux
-
-1. **Make sure you have Python 3 with Tkinter support installed**
-
-   If not, use your package manager to install it.
-   For instance, on Debian-based distros:
-   ```
-   apt install python3 python3-tk
-   ```
-   
-3. **Make sure FFmpeg shared libraries are installed**
-   
-   If not, use your package manager to install them.
-   For instance, on Debian-based distros:
-   ```
-   apt install ffmpeg
-   ```
-   
-2. **Install pipx**
-   
-   ```
-   pip3 install pipx
-   ```
-   
-3. **Install ZAP**
-
-   ```
-   pipx install Zipped-Album-Player
-   ```
-   
 #### MacOS
 
 1. **Make sure you have Python 3 with Tkinter support installed**
@@ -103,6 +73,36 @@ pipx install Zipped-Album-Player
    pipx install Zipped-Album-Player
    ```
 
+#### Linux
+
+1. **Make sure you have Python 3 with Tkinter support installed**
+
+   If not, use your package manager to install it.
+   For instance, on Debian-based distros:
+   ```
+   apt install python3 python3-tk
+   ```
+   
+3. **Make sure FFmpeg shared libraries are installed**
+   
+   If not, use your package manager to install them.
+   For instance, on Debian-based distros:
+   ```
+   apt install ffmpeg
+   ```
+   
+2. **Install pipx**
+   
+   ```
+   pip3 install pipx
+   ```
+   
+3. **Install ZAP**
+
+   ```
+   pipx install Zipped-Album-Player
+   ```
+   
 ## Usage
 
 After successful installation ZAP can be started by calling the command `zap` (or `zipped-album-player`).
