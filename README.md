@@ -36,7 +36,7 @@ pipx install Zipped-Album-Player
    If not, use your package manager to install them.
    For instance, on Debian-based distros:
    ```
-   apt install python3-tk ffmpeg
+   apt install ffmpeg
    ```
    
 2. **Install pipx**
