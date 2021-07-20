@@ -129,7 +129,7 @@ Decrease volume:                          Shift-Left       |      J
       
 * **Couldn't you provide simple one-click installers/executables for ZAP?**
 
-  Yes, I could use something like PyInstaller to do that, and I might at some point. For now, however, I think pipx is a good enough solution.
+  Yes, I could use something like PyInstaller, and I might do that at some point. For now, however, I think pipx is a good enough solution.
 
 * **Why do I not hear any sound when playing an album in ZAP?**
 
