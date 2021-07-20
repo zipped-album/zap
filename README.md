@@ -16,7 +16,7 @@
 
 ZAP can be installed with [pipx](https://pypa.github.io/pipx/):
 ```
-pipx install zipped-album-player
+pipx install Zipped-Album-Player
 ```
 
 ### Detailed instructions
@@ -48,7 +48,7 @@ pipx install zipped-album-player
 3. **Install ZAP**
 
    ```
-   pipx install zipped-album-player
+   pipx install Zipped-Album-Player
    ```
    
 #### MacOS
@@ -74,7 +74,7 @@ pipx install zipped-album-player
 4. **Install ZAP**
 
    ```
-   pipx install zipped-album-player
+   pipx install Zipped-Album-Player
    ```
 
 #### Windows
@@ -100,7 +100,7 @@ pipx install zipped-album-player
 4. **Install ZAP**
 
    ```
-   pipx install zipped-album-player
+   pipx install Zipped-Album-Player
    ```
 
 ## Usage
