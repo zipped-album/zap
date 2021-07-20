@@ -131,7 +131,7 @@ Decrease volume:                          Shift-Left       |      J
       
 * **Why do I not hear any sound when playing an album in ZAP?**
 
-  If you are on Linux, you need to have either OpenAL (reccomended) or PulseAudio installed. PulseAudio comes as default in most distos these days. OpenAL can be installed with your package manager (for instance on Debian-based distros with `apt install libopenal1`).
+  If you are on Linux, you need to have either OpenAL (reccomended) or PulseAudio installed. PulseAudio comes as default in most distros these days. OpenAL can be installed with your package manager (for instance on Debian-based distros with `apt install libopenal1`).
   
 * **Why do I hear glitches/skips/crackling when playing an album in ZAP?**
 
