@@ -55,7 +55,7 @@ pipx install Zipped-Album-Player
 
 1. **Make sure you have Python 3 with Tkinter support installed***
    
-   If not, download and run https://www.python.org/ftp/python/3.9.6/python-3.9.6-macosx10.9.pkg
+   If not, install them. For instance, download and run https://www.python.org/ftp/python/3.9.6/python-3.9.6-macosx10.9.pkg
    
 2. **Make sure FFmpeg shared libraries are installed**
    
