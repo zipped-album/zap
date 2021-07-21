@@ -79,6 +79,8 @@ class ZippedAlbum:
 
         """
 
+        assert os.path.isfile(filename)
+
         self._filename = filename
         self._archive = zipfile.ZipFile(filename)
         self._tmpdir = tempfile.TemporaryDirectory()

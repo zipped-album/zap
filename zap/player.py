@@ -4,11 +4,10 @@ import platform
 import tempfile
 
 import pyglet
-
 from pyglet.media.codecs.ffmpeg import *
 
 pyglet.options['search_local_libs'] = True
-pyglet.options['audio'] = ('pulse', 'directsound', 'openal', 'silent')
+pyglet.options['audio'] = ('openal', 'directsound', 'pulse' 'silent')
 if not pyglet.media.codecs.have_ffmpeg():
     print("Error: FFmpeg shared libraries (version 4) not found!")
     sys.exit()
@@ -105,11 +104,6 @@ class FFmpegSource(FFmpegSource):
         for i in range(file_info.n_streams):
             info = ffmpeg_stream_info(self._file, i)
 
-            # Add audio bitrates higher than 16 when not using OpenAL
-            sample_bits = [8, 16]
-            if type(pyglet.media.get_audio_driver()).__name__ != "OpenALDriver":
-                sample_bits.append(32)
-
             if isinstance(info, StreamVideoInfo) and \
                     self._video_stream is None:
 
@@ -129,7 +123,7 @@ class FFmpegSource(FFmpegSource):
                 self._video_stream_index = i
 
             elif (isinstance(info, StreamAudioInfo) and
-                  info.sample_bits in sample_bits and
+                  info.sample_bits in [8, 16, 32] and
                   self._audio_stream is None):
 
                 stream = ffmpeg_open_stream(self._file, i)
@@ -154,7 +148,13 @@ class FFmpegSource(FFmpegSource):
                 elif sample_format in (AV_SAMPLE_FMT_S16, AV_SAMPLE_FMT_S16P):
                     self.tgt_format = AV_SAMPLE_FMT_S16
                 elif sample_format in (AV_SAMPLE_FMT_S32, AV_SAMPLE_FMT_S32P):
-                    self.tgt_format = AV_SAMPLE_FMT_S32
+                    if type(pyglet.media.get_audio_driver()).__name__ == \
+                            "OpenALDriver":
+                        self.tgt_format = AV_SAMPLE_FMT_S16
+                        self.audio_format.sample_size = 16
+                        resampled = True
+                    else:
+                        self.tgt_format = AV_SAMPLE_FMT_S32
                 elif sample_format in (AV_SAMPLE_FMT_FLT, AV_SAMPLE_FMT_FLTP):
                     self.tgt_format = AV_SAMPLE_FMT_S16
                 else:
@@ -224,6 +224,7 @@ class AudioPlayer:
         pyglet.app.platform_event_loop.start()
         self._on_eos = None
         self._clear_on_queue = True
+        print(f"Audio playback: {self.audio_driver}")
 
     def __del__(self):
         """Delete an AudioPlayer object."""

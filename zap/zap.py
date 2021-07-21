@@ -623,9 +623,9 @@ class MainApplication(ttk.Frame):
         def clicked_canvas_item(e):
             clicked = e.widget.find_closest(e.x, e.y)[0]
             if clicked in (self.canvas_right_bg, self.canvas_right_fg):
-                switch_image(1, True)
+                switch_image(1)
             elif clicked in (self.canvas_left_bg, self.canvas_left_fg):
-                switch_image(-1, True)
+                switch_image(-1)
 
         self.canvas.bind("<Button-1>", clicked_canvas_item)
 
@@ -814,11 +814,6 @@ class MainApplication(ttk.Frame):
                              values=track["display"])
         self.tree.selection_set(["0"])
         self.selected_track_id = 0
-        self.load_track()
-        self.track_tooltip.album = self.loaded_album
-
-        self.truncate_titles()
-        self.set_title()
 
         if len(set([type(x) for x in self.loaded_album.tracklist])) == 1:
             self.player = GaplessAudioPlayer()
@@ -877,6 +872,12 @@ class MainApplication(ttk.Frame):
 
         self.player.eos_callback = next
         self.player.eos_gapless_callback = next_gapless
+
+        self.load_track()
+        self.track_tooltip.album = self.loaded_album
+
+        self.truncate_titles()
+        self.set_title()
 
     def truncate_titles(self, event=None):
         if self.loaded_album is None:
@@ -942,7 +943,10 @@ class MainApplication(ttk.Frame):
             samplerate_str = ""
         try:
             bitdepth = track["streaminfo"]["bit_depth"]
-            bitdepth_str = f"{bitdepth} bit • "
+            if self.player.audio_driver == "OpenALDriver" and bitdepth > 16:
+                bitdepth_str = f"{bitdepth}→16 bit • "
+            else:
+                bitdepth_str = f"{bitdepth} bit • "
         except:
             bitdepth_str = ""
         try:

@@ -16,10 +16,13 @@ def get_version():
     return meta.__version__
 
 setup(
-    name = 'ZAP',
-    description = 'Zipped Album Player',
+    name = 'Zipped Album Player',
+    description = \
+    'Zipped Album Player (ZAP) - ' \
+    'A simple Python-based cross-platform player for the Zipped Album format',
     author = 'Florian Krause',
     author_email = 'florian.krause@fladd.de',
+    url = 'https://github.com/zipped-album/zap',
     version = get_version(),
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -31,12 +34,13 @@ setup(
     python_requires=">=3.6",
     install_requires = ['pillow==8.2.0',
                         'PyMuPDF==1.18.13',
-                        'audio-metadata==0.11',
-                        'pyglet==1.5.17',
+                        'audio-metadata==0.11.1',
+                        'pyglet==1.5.18',
                         ],
     entry_points={
         'gui_scripts': [
             'zap = zap.zap:run',
+            'zipped-album-player = zap.zap:run',
         ]
     }
 )
