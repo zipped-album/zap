@@ -106,7 +106,15 @@ pipx install Zipped-Album-Player
    
 ## Usage
 
-After successful installation, ZAP can be started by calling the command `zap` (or `zipped-album-player`). It takes the path to a Zipped Album file a an optional argument.
+After successful installation, ZAP can be started with either
+```
+zap [ZIPPED_ALBUM]
+````
+or 
+```
+zipped-album-player [ZIPPED_ALBUM]
+```
+where `ZIPPED_ALBUM` is an optional path to a Zipped Album file.
 
 ### Keyboard navigation
 
