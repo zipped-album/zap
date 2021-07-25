@@ -15,6 +15,9 @@ def get_version():
 
     return meta.__version__
 
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
+
 setup(
     name = 'Zipped Album Player',
     description = \
@@ -22,6 +25,8 @@ setup(
     'A simple Python-based cross-platform player for the Zipped Album format',
     author = 'Florian Krause',
     author_email = 'florian.krause@fladd.de',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     url = 'https://github.com/zipped-album/zap',
     version = get_version(),
     classifiers=[
