@@ -952,9 +952,11 @@ class MainApplication(ttk.Frame):
         try:
             channels = track["streaminfo"]["channels"]
             if channels == 1:
-                channels - "mono"
-            if channels == 2:
+                channels = "mono"
+            elif channels == 2:
                 channels = "stereo"
+            elif channels > 2:
+                channels = f"{channels}ch→stereo"
         except:
             channels = ""
         self.trackinfo["text"] = \
