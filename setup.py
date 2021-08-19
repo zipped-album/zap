@@ -40,7 +40,7 @@ setup(
     install_requires = ['pillow==8.2.0',
                         'PyMuPDF==1.18.13',
                         'audio-metadata==0.11.1',
-                        'pyglet==1.5.18',
+                        'pyglet==1.5.19',
                         ],
     entry_points={
         'gui_scripts': [
