@@ -341,8 +341,8 @@ class AudioPlayer:
     def update(self):
         """Update the audio player."""
 
-        pyglet.clock.tick()
         if self.audio_driver == "PulseAudioDriver":
+            pyglet.clock.tick()
             pyglet.app.platform_event_loop.dispatch_posted_events()
         if self._player.source is not None:
             if self.time >= self._player.source.duration:
