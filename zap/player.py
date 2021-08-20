@@ -465,8 +465,8 @@ class GaplessAudioPlayer(AudioPlayer):
     def update(self):
         """Update the audio player."""
 
-        pyglet.clock.tick()
         if self.audio_driver == "PulseAudioDriver":
+            pyglet.clock.tick()
             pyglet.app.platform_event_loop.dispatch_posted_events()
         if self._current_duration is not None:
             if super().time > self._current_duration:

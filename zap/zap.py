@@ -12,6 +12,7 @@ import io
 import gc
 import sys
 import copy
+import time
 import random
 import colorsys
 import platform
@@ -596,6 +597,8 @@ class MainApplication(ttk.Frame):
 
         def playpause():
             if hasattr(self, "player"):
+                if str(self.playpause_button["state"]) == "disabled":
+                    return
                 playing_id = self.playing_track_id
                 self.playpause()
                 if playing_id is not None:
@@ -861,10 +864,24 @@ class MainApplication(ttk.Frame):
                 self.playing_track_id = track_id
                 self.load_track()
             else:
+                track = self.loaded_album.tracklist[self.selected_track_id]
+                dur = track["streaminfo"]["duration"]
+                tickspeed = 0.1
+                if self.player.audio_driver == "PulseAudioDriver":
+                    tickspeed = 0.01
+                pos = self.playhead / 100 * dur + tickspeed
+                start = time.time()
+                self.playpause_button["state"] = "disabled"
+                while time.time() - start < dur - pos:
+                    self.playhead = 100 / dur * (pos + time.time() - start)
+                    self.parent.update()
+                    time.sleep(tickspeed)
+                self.playpause_button["state"] = "normal"
                 self.pause()
                 self.tree.selection_set(["0"])
                 self.selected_track_id = 0
                 self.load_track()
+                self.player.clear()
                 self.player.clear_on_queue = True
                 self.player.seek(0.0)
                 if self.repeat_album:
