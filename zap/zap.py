@@ -1112,9 +1112,13 @@ def run():
     root.resizable(False, False)
     app = MainApplication(root, padding="0 0 0 0")
     app.set_title()
-    root.tk.call('wm', 'iconphoto', root._w,
-                 tk.PhotoImage(file=os.path.abspath(os.path.join(
-            os.path.split(__file__)[0], "zipped_album_icon.png"))))
+    if platform.system() == "Windows":
+        root.iconbitmap(os.path.abspath(os.path.join(
+            os.path.split(__file__)[0], "zipped_album_icon.ico")))
+    else:
+        root.tk.call('wm', 'iconphoto', root._w,
+                     tk.PhotoImage(file=os.path.abspath(os.path.join(
+                os.path.split(__file__)[0], "zipped_album_icon.png"))))
     app.pack(side="top", fill="both", expand=True)
     root.geometry(f"{WIDTH}x{HEIGHT}")
     root.update()
