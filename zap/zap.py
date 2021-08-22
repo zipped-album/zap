@@ -818,6 +818,8 @@ class MainApplication(ttk.Frame):
         self.tree.selection_set(["0"])
         self.selected_track_id = 0
 
+        print(f"Loaded album: {path}")
+
         if len(set([type(x) for x in self.loaded_album.tracklist])) == 1:
             self.player = GaplessAudioPlayer()
         else:
@@ -895,6 +897,7 @@ class MainApplication(ttk.Frame):
 
         self.truncate_titles()
         self.set_title()
+        self.create_menu()
 
     def truncate_titles(self, event=None):
         if self.loaded_album is None:
