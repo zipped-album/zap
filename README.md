@@ -158,6 +158,10 @@ Decrease volume:                          Shift-Left       |      J
 
   Yes, I tried that, but I ran into [issues with Pyglet's FFmpeg wrapper](https://github.com/pyglet/pyglet/issues/419). If you know how to make this work, feel free to submit a pull request.
   
+* **Why is the channel count on my 5.1 surround track reported as "6ch→stereo"?**
+
+  There is currently no mutlichannel support and everything with more than 2 channels is downmixed to stereo.
+
 * **Why is fullscreen mode only working on the first display in a multi-display setup?**
 
   Because Tkinter is not really aware of multiple displays, unfortunately.
