@@ -160,6 +160,4 @@ Decrease volume:                          Shift-Left       |      J
   
 * **Why is fullscreen mode only working on the first display in a multi-display setup?**
 
-  Because Tkinter is not really aware of multiple displays. Currently, I could only make fullscreen mode use the current display on Windows.
-  
-
+  Because Tkinter is not really aware of multiple displays, unfortunately.

@@ -1030,24 +1030,13 @@ class MainApplication(ttk.Frame):
 
     def toggle_fullscreen(self):
         fullscreen = not self.fullscreen
-        if platform.system() == "Windows":
-            self.parent.withdraw()
-            if fullscreen:
-                self.parent.overrideredirect(True)
-                self.parent.state("zoomed")
-            else:
-                self.parent.overrideredirect(False)
-                self.parent.state("normal")
-            self.parent.deiconify()
-        else:
-            if fullscreen:
-                self.parent.withdraw()
-            self.parent.attributes("-fullscreen", fullscreen)
-            if fullscreen:
-                self.update()
-                self.update()
-                self.parent.deiconify()
         if fullscreen:
+            self.parent.withdraw()
+        self.parent.attributes("-fullscreen", fullscreen)
+        if fullscreen:
+            self.update()
+            self.update()
+            self.parent.deiconify()
             size = self.parent.winfo_geometry().split("+")[0]
             width = int(size.split("x")[0])
             height = int(size.split("x")[1])
