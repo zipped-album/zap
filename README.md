@@ -160,7 +160,7 @@ Decrease volume:                          Shift-Left       |      J
   
 * **Why is the channel count on my 5.1 surround track reported as "6ch→stereo"?**
 
-  There is currently no mutlichannel support and everything with more than 2 channels is downmixed to stereo.
+  There is currently no mutli-channel support and everything with more than 2 channels is down-mixed to stereo.
 
 * **Why is fullscreen mode only working on the first display in a multi-display setup?**
 
