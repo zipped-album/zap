@@ -150,9 +150,9 @@ Decrease volume:                          Shift-Left       |      J
 
   If you are on Linux, this might be an issue with PulseAudio. You could either install OpenAL (recommended; see previous answer) or try to fix the PulseAudio problems (see e.g. https://wiki.archlinux.org/title/PulseAudio/Troubleshooting#Glitches,_skips_or_crackling.
   
-* **Why is the bit depth of my tracks reported as "24→16 bits"?**
+* **Why is the bit depth of my tracks reported as "24→16 bit"?**
 
-  If you use OpenAL (default on MacOS; recommended on Linux), ZAP will resample to 16 bits if tracks have higher bit depths than 16, since OpenAL does not support those yet. This process _should_ involve dithering with moderate noise shaping (low-shibata) to prevent quantization noise. However, since [distribution/listening formats do not benefit from bit depths higher than 16](https://web.archive.org/web/20190103133529/http://people.xiph.org/~xiphmont/demo/neil-young.html), I suggest to obtain properly mastered 16 bit sources when available.
+  If you use OpenAL (default on MacOS; recommended on Linux), ZAP will resample to 16 bit during playback for tracks with bit depths higher than that, since OpenAL does not support those yet. This process _should_ involve dithering with moderate noise shaping (low-shibata) to prevent quantization noise. However, since [distribution/listening formats do not benefit from bit depths higher than 16](https://web.archive.org/web/20190103133529/http://people.xiph.org/~xiphmont/demo/neil-young.html), I suggest to obtain properly mastered 16 bit sources when available.
   
 * **Why is the channel count on my 5.1 surround track reported as "6ch→stereo"?**
 
