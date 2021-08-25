@@ -152,7 +152,7 @@ Decrease volume:                          Shift-Left       |      J
   
 * **Why is the bit depth of my tracks reported as "24→16 bits"?**
 
-  OpenAL does not support bit depths higher than 16, and ZAP will resample to 16 if tracks have higher bit depths. This process, however, might lead to quantization noise. Please also note that [distribution/listening formats do not benefit from bit depths higher than 16](https://web.archive.org/web/20190103133529/http://people.xiph.org/~xiphmont/demo/neil-young.html). I hence suggest to try to obtain properly dithered 16 bit versions whenever possible.
+  If you use OpenAL (default on MacOS; recommended on Linux), ZAP will resample to 16 bits if tracks have higher bit depths than 16, since OpenAL does not support those yet. This process should involve dithering with moderate noise shaping (low-shibata) to prevent quantization noise. However, since [distribution/listening formats do not benefit from bit depths higher than 16](https://web.archive.org/web/20190103133529/http://people.xiph.org/~xiphmont/demo/neil-young.html), I suggest to obtain properly mastered 16 bit sources whenever possible.
 
 * **Couldn't ZAP dither when resampling to 16 bits?**
 
