@@ -141,6 +141,7 @@ class FFmpegSource(FFmpegSource):
                 channel_output = avutil.av_get_default_channel_layout(
                     channels_out)
 
+                bitreduction = False
                 sample_rate = stream.codec_context.contents.sample_rate
                 sample_format = stream.codec_context.contents.sample_fmt
                 if sample_format in (AV_SAMPLE_FMT_U8, AV_SAMPLE_FMT_U8P):
@@ -152,7 +153,7 @@ class FFmpegSource(FFmpegSource):
                             "OpenALDriver":
                         self.tgt_format = AV_SAMPLE_FMT_S16
                         self.audio_format.sample_size = 16
-                        resampled = True
+                        bitreduction = True
                     else:
                         self.tgt_format = AV_SAMPLE_FMT_S32
                 elif sample_format in (AV_SAMPLE_FMT_FLT, AV_SAMPLE_FMT_FLTP):
@@ -163,6 +164,13 @@ class FFmpegSource(FFmpegSource):
                 self.audio_convert_ctx = swresample.swr_alloc_set_opts(
                     None, channel_output, self.tgt_format, sample_rate,
                     channel_input, sample_format, sample_rate, 0, None)
+
+                if bitreduction and avutil.av_opt_set(self.audio_convert_ctx,
+                                                      asbytes("dither_method"),
+                                                      asbytes("low_shibata"),
+                                                      0) != 0:
+                    print("Info: Bit reduction without dithering")
+
                 if (not self.audio_convert_ctx or
                         swresample.swr_init(self.audio_convert_ctx) < 0):
                     swresample.swr_free(self.audio_convert_ctx)
