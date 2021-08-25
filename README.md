@@ -153,10 +153,6 @@ Decrease volume:                          Shift-Left       |      J
 * **Why is the bit depth of my tracks reported as "24→16 bits"?**
 
   If you use OpenAL (default on MacOS; recommended on Linux), ZAP will resample to 16 bits if tracks have higher bit depths than 16, since OpenAL does not support those yet. This process _should_ involve dithering with moderate noise shaping (low-shibata) to prevent quantization noise. However, since [distribution/listening formats do not benefit from bit depths higher than 16](https://web.archive.org/web/20190103133529/http://people.xiph.org/~xiphmont/demo/neil-young.html), I suggest to obtain properly mastered 16 bit sources when available.
-
-* **Couldn't ZAP dither when resampling to 16 bits?**
-
-  Yes, I tried that, but I ran into [issues with Pyglet's FFmpeg wrapper](https://github.com/pyglet/pyglet/issues/419). If you know how to make this work, feel free to submit a pull request.
   
 * **Why is the channel count on my 5.1 surround track reported as "6ch→stereo"?**
 
