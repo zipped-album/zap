@@ -22,6 +22,8 @@ class FFmpegSource(FFmpegSource):
         - Close tempfile after writing it
         - Delete tempfile when object is deleted
         - Allow bit depth to be higher than 16
+        - Reduce bit rate to 16 when using OpenAL
+        - Dither (and noise shape) on bit reduction
 
     Original code from the Pyglet project (pyglet.org) is under the following
     license:
@@ -363,7 +365,17 @@ class SourceGroup(pyglet.media.SourceGroup):
 
     def __init__(self):
         super().__init__()
+        self._advance_callback = None
         self._loop_current_source = False
+
+    @property
+    def advance_callback(self):
+        return self._advance_callback
+
+    @advance_callback.setter
+    def advance_callback(self, value):
+        if callable(value):
+            self._advance_callback = value
 
     @property
     def loop_current_source(self):
@@ -379,6 +391,8 @@ class SourceGroup(pyglet.media.SourceGroup):
             self.seek(0.0)
         else:
             super()._advance()
+        if self._advance_callback is not None:
+            self._advance_callback()
 
 
 class GaplessAudioPlayer(AudioPlayer):
@@ -390,8 +404,9 @@ class GaplessAudioPlayer(AudioPlayer):
 
     def __init__(self):
         super().__init__()
-        self.clear()
+        self._on_gapless_advance = None
         self._on_gapless_eos = None
+        self.clear()
 
     @property
     def loop(self):
@@ -406,6 +421,16 @@ class GaplessAudioPlayer(AudioPlayer):
     @property
     def time(self):
         return super().time - self._time_offset
+
+    @property
+    def advance_gapless_callback(self):
+        return self._on_gapless_advance
+
+    @advance_gapless_callback.setter
+    def advance_gapless_callback(self, value):
+        if callable(value):
+            self._on_gapless_advance = value
+            self._sourcegroup.advance_callback = value
 
     @property
     def eos_gapless_callback(self):
@@ -425,6 +450,7 @@ class GaplessAudioPlayer(AudioPlayer):
 
         super().clear()
         self._sourcegroup = SourceGroup()
+        self._sourcegroup.advance_callback = self.advance_gapless_callback
         self._player.queue(self._sourcegroup)
         self._time_offset = 0
         self._current_duration = None

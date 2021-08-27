@@ -540,6 +540,8 @@ class MainApplication(ttk.Frame):
         def increment_track(step):
             selected_track_id = self.selected_track_id + step
             if 0 <= selected_track_id < len(self.loaded_album.tracklist):
+                if str(self.playpause_button["state"]) == "disabled":
+                    return
                 play_next = False
                 if self.playing_track_id is not None:
                     self.pause()
@@ -568,6 +570,8 @@ class MainApplication(ttk.Frame):
 
         def increment_playhead(step):
             if self.loaded_album is not None:
+                if str(self.playpause_button["state"]) == "disabled":
+                    return
                 track = self.loaded_album.tracklist[self.selected_track_id]
                 new_playhead = self.playhead + step
                 pos = track["streaminfo"]["duration"] / 100 * new_playhead
@@ -582,6 +586,8 @@ class MainApplication(ttk.Frame):
 
         def seek_to_beginning(e):
             if self.loaded_album is not None:
+                if str(self.playpause_button["state"]) == "disabled":
+                    return
                 self.playhead = 0
                 self.player.seek(0.0)
 
@@ -634,6 +640,8 @@ class MainApplication(ttk.Frame):
 
         def set_playhead_from_mouseclick(e):
             if self.loaded_album is not None:
+                if str(self.playpause_button["state"]) == "disabled":
+                    return
                 slider = e.widget
                 new_playhead = e.x / slider.winfo_width() * slider["maximum"]
                 track = self.loaded_album.tracklist[self.selected_track_id]
@@ -653,6 +661,8 @@ class MainApplication(ttk.Frame):
         self.volume_slider.bind("<B1-Motion>", set_volume_from_mouseclick)
 
         def clicked_treeitem(e):
+            if str(self.playpause_button["state"]) == "disabled":
+                return
             item_id = self.tree.identify('item', e.x, e.y)
             if item_id == "":
                 return
@@ -825,8 +835,12 @@ class MainApplication(ttk.Frame):
         else:
             self.player = AudioPlayer()
 
+        def on_advance():
+            self.playpause_button["state"] = "disabled"
+
         def next_gapless():
             if self.selected_track_id + 1 < len(self.loaded_album.tracklist):
+                self.playpause_button["state"] = "normal"
                 tags = self.tree.item(str(self.selected_track_id), "tags")
                 tags = [x for x in tags if x != "bold"]
                 tags.append("normal")
@@ -890,6 +904,7 @@ class MainApplication(ttk.Frame):
                     self.play()
 
         self.player.eos_callback = next
+        self.player.advance_gapless_callback = on_advance
         self.player.eos_gapless_callback = next_gapless
 
         self.load_track()
