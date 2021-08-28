@@ -575,7 +575,11 @@ class MainApplication(ttk.Frame):
                 track = self.loaded_album.tracklist[self.selected_track_id]
                 new_playhead = self.playhead + step
                 pos = track["streaminfo"]["duration"] / 100 * new_playhead
-                if pos < track["streaminfo"]["duration"] - 2:
+                if isinstance(self.player, GaplessAudioPlayer):
+                    transition_time = 2
+                else:
+                    transition_time = 0.2
+                if pos < track["streaminfo"]["duration"] - transition_time:
                     self.playhead = new_playhead
                     self.player.seek(pos)
 
@@ -646,7 +650,11 @@ class MainApplication(ttk.Frame):
                 new_playhead = e.x / slider.winfo_width() * slider["maximum"]
                 track = self.loaded_album.tracklist[self.selected_track_id]
                 pos = track["streaminfo"]["duration"] / 100 * new_playhead
-                if pos < track["streaminfo"]["duration"] - 2:
+                if isinstance(self.player, GaplessAudioPlayer):
+                    transition_time = 2
+                else:
+                    transition_time = 0.2
+                if pos < track["streaminfo"]["duration"] - transition_time:
                     self.playhead = new_playhead
                     self.player.seek(pos)
 
@@ -831,7 +839,7 @@ class MainApplication(ttk.Frame):
         print(f"Loaded album: {path}")
 
         if len(set([type(x) for x in self.loaded_album.tracklist])) == 1:
-            self.player = GaplessAudioPlayer()
+            self.player = AudioPlayer()
         else:
             self.player = AudioPlayer()
 
