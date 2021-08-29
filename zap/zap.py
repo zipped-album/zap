@@ -303,7 +303,8 @@ class MainApplication(ttk.Frame):
                 self.player.update()
                 track = self.loaded_album.tracklist[self.selected_track_id]
                 time = self.player.time
-                self.playhead = 100 / track["streaminfo"]["duration"] * time
+                if str(self.playpause_button["state"]) == "normal":
+                    self.playhead = 100 / track["streaminfo"]["duration"] * time
                 if self.player.audio_driver == "PulseAudioDriver":
                     intervall = 10
             self.after(intervall, update_player)
@@ -575,13 +576,8 @@ class MainApplication(ttk.Frame):
                 track = self.loaded_album.tracklist[self.selected_track_id]
                 new_playhead = self.playhead + step
                 pos = track["streaminfo"]["duration"] / 100 * new_playhead
-                if isinstance(self.player, GaplessAudioPlayer):
-                    transition_time = 2
-                else:
-                    transition_time = 0.2
-                if pos < track["streaminfo"]["duration"] - transition_time:
-                    self.playhead = new_playhead
-                    self.player.seek(pos)
+                self.playhead = new_playhead
+                self.player.seek(pos)
 
         self.parent.bind(f"<Right>", lambda e: increment_playhead(1))
         self.parent.bind("l", lambda e: increment_playhead(1))
@@ -650,13 +646,8 @@ class MainApplication(ttk.Frame):
                 new_playhead = e.x / slider.winfo_width() * slider["maximum"]
                 track = self.loaded_album.tracklist[self.selected_track_id]
                 pos = track["streaminfo"]["duration"] / 100 * new_playhead
-                if isinstance(self.player, GaplessAudioPlayer):
-                    transition_time = 2
-                else:
-                    transition_time = 0.2
-                if pos < track["streaminfo"]["duration"] - transition_time:
-                    self.playhead = new_playhead
-                    self.player.seek(pos)
+                self.playhead = new_playhead
+                self.player.seek(pos)
 
         self.playhead_slider.bind("<ButtonPress-1>", set_playhead_from_mouseclick)
         self.playhead_slider.bind("<B1-Motion>", set_playhead_from_mouseclick)
@@ -783,7 +774,7 @@ class MainApplication(ttk.Frame):
                 0, 0, image=self.canvas.image, anchor="nw")
         self.loaded_album = None
         if self.playing_track_id is not None:
-            self.playpause()
+            self.pause()
         for i in self.tree.get_children():
             self.tree.delete(i)
         self.remove_arrows()
@@ -839,15 +830,31 @@ class MainApplication(ttk.Frame):
         print(f"Loaded album: {path}")
 
         if len(set([type(x) for x in self.loaded_album.tracklist])) == 1:
-            self.player = AudioPlayer()
+            self.player = GaplessAudioPlayer()
         else:
             self.player = AudioPlayer()
 
-        def on_advance():
-            self.playpause_button["state"] = "disabled"
-
         def next_gapless():
             if self.selected_track_id + 1 < len(self.loaded_album.tracklist):
+                self.playpause_button["state"] = "disabled"
+                track = self.loaded_album.tracklist[self.selected_track_id]
+                dur = track["streaminfo"]["duration"]
+                tickspeed = 0.1
+                if self.player.audio_driver == "PulseAudioDriver":
+                    tickspeed = 0.01
+                pos = self.playhead / 100 * dur + tickspeed
+                start = time.time()
+                # Update GUI after running out of audio data
+                while True:
+                    current_time = time.time()
+                    if current_time - start >= dur - (pos - tickspeed):
+                        break
+                    self.playhead = 100 / dur * (pos + time.time() - start)
+                    self.player.update(tick_only=True)
+                    self.parent.update()
+                    sleep_time = tickspeed - (time.time() - current_time)
+                    if sleep_time > 0:
+                        time.sleep(sleep_time)
                 self.playpause_button["state"] = "normal"
                 tags = self.tree.item(str(self.selected_track_id), "tags")
                 tags = [x for x in tags if x != "bold"]
@@ -888,6 +895,7 @@ class MainApplication(ttk.Frame):
                 self.playing_track_id = track_id
                 self.load_track()
             else:
+                self.playpause_button["state"] = "disabled"
                 track = self.loaded_album.tracklist[self.selected_track_id]
                 dur = track["streaminfo"]["duration"]
                 tickspeed = 0.1
@@ -895,13 +903,20 @@ class MainApplication(ttk.Frame):
                     tickspeed = 0.01
                 pos = self.playhead / 100 * dur + tickspeed
                 start = time.time()
-                self.playpause_button["state"] = "disabled"
-                while time.time() - start < dur - pos:
+                # Update playhead after running out of audio data
+                while True:
+                    current_time = time.time()
+                    if current_time - start >= dur - pos:
+                        break
                     self.playhead = 100 / dur * (pos + time.time() - start)
+                    self.player.update(tick_only=True)
                     self.parent.update()
-                    time.sleep(tickspeed)
+                    sleep_time = tickspeed - (time.time() - current_time)
+                    if sleep_time > 0:
+                        time.sleep(sleep_time)
                 self.playpause_button["state"] = "normal"
-                self.pause()
+                if self.playing_track_id is not None:
+                    self.pause()
                 self.tree.selection_set(["0"])
                 self.selected_track_id = 0
                 self.load_track()
@@ -912,7 +927,6 @@ class MainApplication(ttk.Frame):
                     self.play()
 
         self.player.eos_callback = next
-        self.player.advance_gapless_callback = on_advance
         self.player.eos_gapless_callback = next_gapless
 
         self.load_track()

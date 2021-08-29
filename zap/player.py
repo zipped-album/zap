@@ -264,15 +264,6 @@ class AudioPlayer:
             self._player.volume = value
 
     @property
-    def loop(self):
-        return self._player.loop
-
-    @loop.setter
-    def loop(self, value):
-        if type(value) is bool:
-            self._player.loop = value
-
-    @property
     def eos_callback(self):
         return self._on_eos
 
@@ -365,8 +356,8 @@ class SourceGroup(pyglet.media.SourceGroup):
 
     def __init__(self):
         super().__init__()
+        self._advanced = False
         self._advance_callback = None
-        self._loop_current_source = False
 
     @property
     def advance_callback(self):
@@ -377,22 +368,9 @@ class SourceGroup(pyglet.media.SourceGroup):
         if callable(value):
             self._advance_callback = value
 
-    @property
-    def loop_current_source(self):
-        return self._loop_current_source
-
-    @loop_current_source.setter
-    def loop_current_source(self, value):
-        if type(value) == bool:
-            self._loop_current_source = value
-
     def _advance(self):
-        if self.loop_current_source:
-            self.seek(0.0)
-        else:
-            super()._advance()
-        if self._advance_callback is not None:
-            self._advance_callback()
+        super()._advance()
+        self._advanced = True
 
 
 class GaplessAudioPlayer(AudioPlayer):
@@ -404,33 +382,8 @@ class GaplessAudioPlayer(AudioPlayer):
 
     def __init__(self):
         super().__init__()
-        self._on_gapless_advance = None
         self._on_gapless_eos = None
         self.clear()
-
-    @property
-    def loop(self):
-        return self._player.loop
-
-    @loop.setter
-    def loop(self, value):
-        if type(value) is bool:
-            self._player.loop = value
-            self._sourcegroup.loop_current_source = value
-
-    @property
-    def time(self):
-        return super().time - self._time_offset
-
-    @property
-    def advance_gapless_callback(self):
-        return self._on_gapless_advance
-
-    @advance_gapless_callback.setter
-    def advance_gapless_callback(self, value):
-        if callable(value):
-            self._on_gapless_advance = value
-            self._sourcegroup.advance_callback = value
 
     @property
     def eos_gapless_callback(self):
@@ -450,9 +403,7 @@ class GaplessAudioPlayer(AudioPlayer):
 
         super().clear()
         self._sourcegroup = SourceGroup()
-        self._sourcegroup.advance_callback = self.advance_gapless_callback
         self._player.queue(self._sourcegroup)
-        self._time_offset = 0
         self._current_duration = None
 
     def queue(self, tracks):
@@ -480,35 +431,46 @@ class GaplessAudioPlayer(AudioPlayer):
     def seek(self, time):
         """Seek to a certain point in time.
 
+        Parameters
+        ----------
         time : float
             the point in time to seek to (in seconds)
 
         """
 
+        if self._sourcegroup._advanced:
+            return
         if self._current_duration is not None:
-            if time > self._current_duration - 2:
-                time = self._current_duration - 2
-            if self.time < self._current_duration - 2:
+            if time > self._current_duration - 0.2:
+                time = self._current_duration - 0.2
+            if self.time < self._current_duration - 0.2:
+                current_duration = self._current_duration
                 super().seek(time)
-                # Seeking will advance the source group
-                self._time_offset = 0
-                if len(self._sourcegroup._sources) > 0:
-                    self._current_duration = \
-                        self._sourcegroup._sources[0].duration
 
-    def update(self):
-        """Update the audio player."""
+    def update(self, tick_only=False):
+        """Update the audio player.
+
+        Parameters
+        ----------
+        tick_only : bool (default=False)
+            if True, only tick the pyglet clock and process events
+
+        """
 
         if self.audio_driver == "PulseAudioDriver":
             pyglet.clock.tick()
             pyglet.app.platform_event_loop.dispatch_posted_events()
+        if tick_only:
+            return
         if self._current_duration is not None:
-            if super().time > self._current_duration:
+            if self._sourcegroup._advanced:
+                self._sourcegroup._advanced = False
+                self._on_gapless_eos()
+            if self.time > self._current_duration:
                 if len(self._sourcegroup._sources) > 0:
-                    if self._on_gapless_eos is not None:
-                        self._on_gapless_eos()
-                    self._time_offset = self._current_duration
-                    self._current_duration += \
+                    self._player._timer.set_time(self.time - \
+                                                 self._current_duration)
+                    self._current_duration = \
                         self._sourcegroup._sources[0].duration
                 else:
                     self._current_duration = None
