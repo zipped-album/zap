@@ -155,7 +155,7 @@ Decrease volume:                          Shift-Left       |      J
   
 * **Why is the bit depth of my tracks reported as "24→16 bit"?**
 
-  When ZAP uses OpenAL for audio playback, ZAP will resample to 16 bit during playback for tracks with bit depths higher than that, since OpenAL does not support those yet. This process will involve dithering (with moderate noise shaping) to prevent quantization noise. However, since [distribution/listening formats do not benefit from bit depths higher than 16](https://web.archive.org/web/20190103133529/http://people.xiph.org/~xiphmont/demo/neil-young.html), I suggest to obtain properly mastered 16 bit sources when available.
+  When ZAP uses OpenAL, it will resample to 16 bit during playback for tracks with bit depths higher than that, since OpenAL does not support those yet. This process will involve dithering (with moderate noise shaping) to prevent quantization noise. However, since [distribution/listening formats do not benefit from bit depths higher than 16](https://web.archive.org/web/20190103133529/http://people.xiph.org/~xiphmont/demo/neil-young.html), I suggest to obtain properly mastered 16 bit sources when available.
   
 * **Why is the channel count on my 5.1 surround track reported as "6ch→stereo"?**
 
