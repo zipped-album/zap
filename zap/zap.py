@@ -76,6 +76,8 @@ ABOUT_TEXT = """
  └───────────────────────────────────────────────────────────────────────────┘
 """.format(ver=__version__)
 
+UPDATE_INTERVALL = 100  # in ms
+
 while True:
     h,l,s = [random.random() for x in range(3)]
     if 0.4 <= l <= 0.7:
@@ -298,16 +300,17 @@ class MainApplication(ttk.Frame):
         self.playing_track_id = None
 
         def update_player():
-            intervall = 100
-            if hasattr(self, "player") and self.player.is_playing:
-                self.player.update()
-                track = self.loaded_album.tracklist[self.selected_track_id]
-                time = self.player.time
-                if str(self.playpause_button["state"]) == "normal":
-                    self.playhead = 100 / track["streaminfo"]["duration"] * time
-                if self.player.audio_driver == "PulseAudioDriver":
-                    intervall = 10
-            self.after(intervall, update_player)
+            try:
+                if hasattr(self, "player") and self.player.is_playing:
+                    self.player.update()
+                    track = self.loaded_album.tracklist[self.selected_track_id]
+                    time = self.player.time
+                    if str(self.playpause_button["state"]) == "normal":
+                        playhead = 100 / track["streaminfo"]["duration"] * time
+                        self.playhead = playhead
+                self.after(UPDATE_INTERVALL, update_player)
+            except tk._tkinter.TclError:
+                pass
 
         update_player()
 
@@ -385,7 +388,7 @@ class MainApplication(ttk.Frame):
 
         if platform.system() != "Darwin":
             self.file_menu.add_command(label="Quit",
-                                       command=self.master.destroy,
+                                       command=self.quit,
                                        accelerator=f"{modifier}-Q")
             self.help_menu = tk.Menu(self.menubar, tearoff=False)
             self.menubar.add_cascade(menu=self.help_menu, label="Help")
@@ -396,7 +399,7 @@ class MainApplication(ttk.Frame):
 
         self.parent.bind("<F1>", lambda e: HelpDialogue(self.master))
         self.parent.bind(f"<{modifier}-q>",
-                         lambda e: self.master.destroy())
+                         lambda e: self.quit())
 
         self.parent["menu"] = self.menubar
 
@@ -839,9 +842,7 @@ class MainApplication(ttk.Frame):
                 self.playpause_button["state"] = "disabled"
                 track = self.loaded_album.tracklist[self.selected_track_id]
                 dur = track["streaminfo"]["duration"]
-                tickspeed = 0.1
-                if self.player.audio_driver == "PulseAudioDriver":
-                    tickspeed = 0.01
+                tickspeed = UPDATE_INTERVALL / 1000
                 pos = self.playhead / 100 * dur + tickspeed
                 start = time.time()
                 # Update GUI after running out of audio data
@@ -898,9 +899,7 @@ class MainApplication(ttk.Frame):
                 self.playpause_button["state"] = "disabled"
                 track = self.loaded_album.tracklist[self.selected_track_id]
                 dur = track["streaminfo"]["duration"]
-                tickspeed = 0.1
-                if self.player.audio_driver == "PulseAudioDriver":
-                    tickspeed = 0.01
+                tickspeed = UPDATE_INTERVALL / 1000
                 pos = self.playhead / 100 * dur + tickspeed
                 start = time.time()
                 # Update playhead after running out of audio data
@@ -1126,6 +1125,10 @@ class MainApplication(ttk.Frame):
                 title = prefix + title
         self.parent.title(title)
 
+    def quit(self):
+        self.player = None
+        del self.player
+        self.parent.destroy()
 
 def run():
     if platform.system() == "Windows":
@@ -1155,6 +1158,7 @@ def run():
     root.minsize(root.winfo_width(), root.winfo_height())
     root.lift()
     root.focus_force()
+    root.protocol('WM_DELETE_WINDOW', app.quit)
 
     try:
         app.load_album(os.path.abspath(sys.argv[1]))

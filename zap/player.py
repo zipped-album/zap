@@ -7,7 +7,7 @@ import pyglet
 from pyglet.media.codecs.ffmpeg import *
 
 pyglet.options['search_local_libs'] = True
-pyglet.options['audio'] = ('openal', 'directsound', 'pulse', 'silent')
+pyglet.options['audio'] = ('openal', 'directsound', 'silent')
 if not pyglet.media.codecs.have_ffmpeg():
     print("Error: FFmpeg shared libraries (version 4) not found!")
     sys.exit()
@@ -231,8 +231,6 @@ class AudioPlayer:
         """Create an AudioPlayer object."""
 
         self._player = pyglet.media.Player()
-        if self.audio_driver == "PulseAudioDriver":
-            pyglet.app.platform_event_loop.start()
         self._on_eos = None
         self._clear_on_queue = True
         print(f"Audio playback: {self.audio_driver}")
@@ -240,8 +238,6 @@ class AudioPlayer:
     def __del__(self):
         """Delete an AudioPlayer object."""
 
-        if self.audio_driver == "PulseAudioDriver":
-            pyglet.app.platform_event_loop.stop()
         self._player.delete()
 
     @property
@@ -344,9 +340,6 @@ class AudioPlayer:
     def update(self):
         """Update the audio player."""
 
-        if self.audio_driver == "PulseAudioDriver":
-            pyglet.clock.tick()
-            pyglet.app.platform_event_loop.dispatch_posted_events()
         if self._player.source is not None:
             if self.time >= self._player.source.duration:
                 if self._on_eos is not None:
@@ -459,9 +452,6 @@ class GaplessAudioPlayer(AudioPlayer):
 
         """
 
-        if self.audio_driver == "PulseAudioDriver":
-            pyglet.clock.tick()
-            pyglet.app.platform_event_loop.dispatch_posted_events()
         if tick_only:
             return
         if self._current_duration is not None:

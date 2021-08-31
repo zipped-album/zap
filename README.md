@@ -84,21 +84,28 @@ pipx install Zipped-Album-Player
    sudo apt install python3 python3-venv python3-pip python3-tk
    ```
    
-3. **Make sure FFmpeg shared libraries are installed**
+2. **Make sure FFmpeg shared libraries are installed**
    
    If not, install them. For instance, on Debian-based distros:
    ```
    sudo apt install ffmpeg
    ```
    
-2. **Install pipx**
+3. **Make sure OpenAL is installed**
+
+   If not, install it. For instance, on Debian-based distros:
+   ```
+   sudo apt install libopenal1
+   ```
+   
+4. **Install pipx**
    
    ```
    python3 -m pip install --user pipx
    python3 -m pipx ensurepath
    ```
    
-3. **Install ZAP**
+5. **Install ZAP**
 
    ```
    pipx install Zipped-Album-Player
@@ -144,15 +151,11 @@ Decrease volume:                          Shift-Left       |      J
 
 * **Why do I not hear any sound when playing an album in ZAP?**
 
-  If you are on Linux, you need to have either OpenAL (reccomended) or PulseAudio installed. PulseAudio comes as default in most distros these days. OpenAL can be installed with your package manager (for instance on Debian-based distros with `apt install libopenal1`).
-  
-* **Why do I hear glitches/skips/crackling when playing an album in ZAP?**
-
-  If you are on Linux, this might be an issue with PulseAudio. You could either install OpenAL (recommended; see previous answer) or try to fix the PulseAudio problems (see e.g. https://wiki.archlinux.org/title/PulseAudio/Troubleshooting#Glitches,_skips_or_crackling.
+  ZAP might have selected the "Silent" audio driver. ZAP relies on either DirectSound (Windows) or OpenAL (MacOS, Linux, Windows) to play back audio. On Windows, DirectSound should be installed by default. On MacOS, OpenAL should be installed by default. On Linux, OpenAL might not be installed by default. Install it with your package manager (for instance on Debian-based distros with `apt install libopenal1`). 
   
 * **Why is the bit depth of my tracks reported as "24→16 bit"?**
 
-  If you use OpenAL (default on MacOS; recommended on Linux), ZAP will resample to 16 bit during playback for tracks with bit depths higher than that, since OpenAL does not support those yet. This process will involve dithering (with moderate noise shaping) to prevent quantization noise. However, since [distribution/listening formats do not benefit from bit depths higher than 16](https://web.archive.org/web/20190103133529/http://people.xiph.org/~xiphmont/demo/neil-young.html), I suggest to obtain properly mastered 16 bit sources when available.
+  When ZAP uses OpenAL for audio playback, ZAP will resample to 16 bit during playback for tracks with bit depths higher than that, since OpenAL does not support those yet. This process will involve dithering (with moderate noise shaping) to prevent quantization noise. However, since [distribution/listening formats do not benefit from bit depths higher than 16](https://web.archive.org/web/20190103133529/http://people.xiph.org/~xiphmont/demo/neil-young.html), I suggest to obtain properly mastered 16 bit sources when available.
   
 * **Why is the channel count on my 5.1 surround track reported as "6ch→stereo"?**
 
