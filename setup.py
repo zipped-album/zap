@@ -39,7 +39,7 @@ setup(
                             '*.ico']},
     python_requires=">=3.6",
     install_requires = ['pillow==8.3.1',
-                        'PyMuPDF==1.18.16',
+                        'PyMuPDF==1.18.17',
                         'audio-metadata==0.11.1',
                         'pyglet==1.5.19',
                         ],
