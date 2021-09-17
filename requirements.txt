@@ -1,4 +1,4 @@
-pillow==8.3.1
+pillow==8.3.2
 PyMuPDF==1.18.17
 audio-metadata==0.11.1
-pyglet==1.5.19
+pyglet==1.5.21

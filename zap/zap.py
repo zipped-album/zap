@@ -845,10 +845,12 @@ class MainApplication(ttk.Frame):
                 tickspeed = UPDATE_INTERVALL / 1000
                 pos = self.playhead / 100 * dur + tickspeed
                 start = time.time()
+                buffer_time = self.player.buffer_time
                 # Update GUI after running out of audio data
                 while True:
                     current_time = time.time()
-                    if current_time - start >= dur - (pos - tickspeed):
+                    max_time = min(dur - (pos - tickspeed), 2 * buffer_time)
+                    if current_time - start >= max_time:
                         break
                     self.playhead = 100 / dur * (pos + time.time() - start)
                     self.player.update(tick_only=True)
@@ -902,10 +904,12 @@ class MainApplication(ttk.Frame):
                 tickspeed = UPDATE_INTERVALL / 1000
                 pos = self.playhead / 100 * dur + tickspeed
                 start = time.time()
+                buffer_time = self.player.buffer_time
                 # Update playhead after running out of audio data
                 while True:
                     current_time = time.time()
-                    if current_time - start >= dur - pos:
+                    max_time = min(dur - (pos - tickspeed), 2 * buffer_time)
+                    if current_time - start >= max_time:
                         break
                     self.playhead = 100 / dur * (pos + time.time() - start)
                     self.player.update(tick_only=True)

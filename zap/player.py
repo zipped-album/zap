@@ -130,10 +130,6 @@ class FFmpegSource(FFmpegSource):
 
                 stream = ffmpeg_open_stream(self._file, i)
 
-                self.audio_format = AudioFormat(
-                    channels=min(2, info.channels),
-                    sample_size=info.sample_bits,
-                    sample_rate=info.sample_rate)
                 self._audio_stream = stream
                 self._audio_stream_index = i
 
@@ -143,6 +139,7 @@ class FFmpegSource(FFmpegSource):
                 channel_output = avutil.av_get_default_channel_layout(
                     channels_out)
 
+                bitdepth = info.sample_bits
                 bitreduction = False
                 sample_rate = stream.codec_context.contents.sample_rate
                 sample_format = stream.codec_context.contents.sample_fmt
@@ -154,7 +151,7 @@ class FFmpegSource(FFmpegSource):
                     if type(pyglet.media.get_audio_driver()).__name__ == \
                             "OpenALDriver":
                         self.tgt_format = AV_SAMPLE_FMT_S16
-                        self.audio_format.sample_size = 16
+                        bitdepth = 16
                         bitreduction = True
                     else:
                         self.tgt_format = AV_SAMPLE_FMT_S32
@@ -162,6 +159,11 @@ class FFmpegSource(FFmpegSource):
                     self.tgt_format = AV_SAMPLE_FMT_S16
                 else:
                     raise FFmpegException('Audio format not supported.')
+
+                self.audio_format = AudioFormat(
+                    channels=channels_out,
+                    sample_size=bitdepth,
+                    sample_rate=info.sample_rate)
 
                 self.audio_convert_ctx = swresample.swr_alloc_set_opts(
                     None, channel_output, self.tgt_format, sample_rate,
@@ -247,6 +249,22 @@ class AudioPlayer:
     @property
     def is_playing(self):
         return self._player.playing
+
+    @property
+    def buffer_size(self):
+        if self.is_playing:
+            if self.audio_driver == "DirectSoundDriver":
+                return self._player._audio_player._buffer_size
+            elif self.audio_driver == "OpenALDriver":
+                return self._player._audio_player.ideal_buffer_size
+
+    @property
+    def buffer_time(self):
+        if self.is_playing:
+            rate = self._player._audio_player.source.audio_format.sample_rate
+            size = self._player._audio_player.source.audio_format.sample_size
+            channels = self._player._audio_player.source.audio_format.channels
+            return self.buffer_size / rate / (size / 8 * channels)
 
     @property
     def time(self):
