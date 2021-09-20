@@ -876,6 +876,7 @@ class MainApplication(ttk.Frame):
                 self.selected_track_id = track_id
                 self.playing_track_id = track_id
                 self.load_track()
+                self.set_title()
 
         def next():
             if self.selected_track_id + 1 < len(self.loaded_album.tracklist):
@@ -897,6 +898,7 @@ class MainApplication(ttk.Frame):
                 self.selected_track_id = track_id
                 self.playing_track_id = track_id
                 self.load_track()
+                self.set_title()
             else:
                 self.playpause_button["state"] = "disabled"
                 track = self.loaded_album.tracklist[self.selected_track_id]
@@ -923,6 +925,7 @@ class MainApplication(ttk.Frame):
                 self.tree.selection_set(["0"])
                 self.selected_track_id = 0
                 self.load_track()
+                self.set_title()
                 self.player.clear()
                 self.player.clear_on_queue = True
                 self.player.seek(0.0)
