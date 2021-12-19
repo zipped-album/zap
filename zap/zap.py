@@ -36,18 +36,28 @@ from .album import ZippedAlbum
 from .player import AudioPlayer, GaplessAudioPlayer
 
 
-WIDTH = 1024
-HEIGHT = 600
-PADDING = 8
-CELLPADDING = 8 #8=2x4 cell padding
+if "--SCALING" in sys.argv:
+    SCALING = float(sys.argv[sys.argv.index("--SCALING") + 1])
+elif "GDK_SCALE" in os.environ:
+    SCALING = float(os.environ["GDK_SCALE"])
+elif "QT_SCREEN_SCALE_FACTORS" in os.environ:
+    SCALING = float(os.environ["QT_SCREEN_SCALE_FACTORS"].split(
+        ";")[0].split("=")[-1])
+else:
+    SCALING = 1
+
+WIDTH = int(1024 * SCALING)
+HEIGHT = int(600 * SCALING)
+PADDING = int(8 * SCALING)
+CELLPADDING = int(8 * SCALING) #8=2x4 cell padding
 if platform.system() == "Windows":
     FONTNAME = "Calibri"
     FONTSIZE = 11
 elif platform.system() == "Darwin":
     FONTNAME = "Helvetica Neue"
-    FONTSIZE = 13
+    FONTSIZE =13
 else:
-    FONTNAME = "Nimbus Sans L"
+    FONTNAME = "Nimbus Sans"
     FONTSIZE = 10
 
 ABOUT_TEXT = """
@@ -460,12 +470,14 @@ class MainApplication(ttk.Frame):
 
         self.style.configure("Treeview.Heading", font=(FONTNAME, FONTSIZE))
         self.style.configure("Treeview", font=(FONTNAME, FONTSIZE))
+        if SCALING > 1:
+            self.style.configure("Treeview", rowheight=int(13 * (SCALING * 1.6)))
 
         tree_frame = ttk.Frame(frame_right)
         tree_frame.grid(column=0, row=1, sticky="nesw")
         tree_frame.columnconfigure(0, weight=1)
         tree_frame.rowconfigure(0, weight=1)
-        self.style.configure('Treeview', relief="flat", borderwidth=1)
+        self.style.configure('Treeview', relief="flat", borderwidth=1 * SCALING)
         self.tree = ttk.Treeview(tree_frame, show="tree", selectmode="browse")
         self.tree.tag_configure('normal', font=(FONTNAME, FONTSIZE))
         self.tree.tag_configure('bold', font=(FONTNAME, FONTSIZE, "bold"))
@@ -490,9 +502,9 @@ class MainApplication(ttk.Frame):
 
         frame_bottom = ttk.Frame(frame_right)
         frame_bottom.grid(column=0, row=2, sticky="nesw")
-        frame_bottom.columnconfigure(0, minsize=50)
+        frame_bottom.columnconfigure(0, minsize=int(50 * SCALING))
         frame_bottom.columnconfigure(1, weight=1)
-        frame_bottom.columnconfigure(2, minsize=50)
+        frame_bottom.columnconfigure(2, minsize=int(50 * SCALING))
         frame_bottom.grid_configure(padx=PADDING, pady=PADDING)
 
         self.playpause_button = ttk.Button(frame_bottom, text="▶", width=1,
@@ -500,7 +512,7 @@ class MainApplication(ttk.Frame):
                                            takefocus=0, state="disabled")
         self.playpause_button.grid(column=0, row=0, sticky="nesw")
 
-        slider_frame = ttk.Frame(frame_bottom, height=10)
+        slider_frame = ttk.Frame(frame_bottom, height=int(10 * SCALING))
         slider_frame.grid(column=1, row=0, sticky="ew", padx=PADDING/2)
         self.playhead_slider = ttk.Progressbar(slider_frame,
                                                orient="horizontal",
@@ -517,11 +529,11 @@ class MainApplication(ttk.Frame):
         self.playhead_label.grid(column=1, row=1, sticky="ns")
         self.playhead = None
 
-        slider_frame = ttk.Frame(frame_bottom, height=10)
+        slider_frame = ttk.Frame(frame_bottom, height=int(10 * SCALING))
         slider_frame.grid(column=2, row=0, sticky="ew", padx=PADDING/2)
         self.volume_slider = ttk.Progressbar(slider_frame,
                                              orient="horizontal",
-                                             mode='determinate', length=50,
+                                             mode='determinate', length=int(50 * SCALING),
                                              maximum=100, value=100)
         self.volume_slider.place(relheight=1.0, relwidth=1.0)
         self.volume_label = ttk.Label(frame_bottom, anchor="center",
@@ -1147,9 +1159,8 @@ def run():
             pass
 
     root = tk.Tk()
-    if "GDK_SCALE" in os.environ:
-        scaling = os.environ["GDK_SCALE"]
-        root.tk.call('tk', 'scaling', float(scaling))
+    dpi = root.winfo_fpixels('1i')
+    root.tk.call('tk', 'scaling', SCALING * (dpi / 72.0))
     root.withdraw()
     root.resizable(False, False)
     app = MainApplication(root, padding="0 0 0 0")
@@ -1180,3 +1191,4 @@ def run():
 
 if __name__ == "__main__":
     run()
+
