@@ -1147,6 +1147,9 @@ def run():
             pass
 
     root = tk.Tk()
+    if "GDK_SCALE" in os.environ:
+        scaling = os.environ["GDK_SCALE"]
+        root.tk.call('tk', 'scaling', float(scaling))
     root.withdraw()
     root.resizable(False, False)
     app = MainApplication(root, padding="0 0 0 0")
