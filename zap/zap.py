@@ -120,6 +120,12 @@ class AutoScrollbar(ttk.Scrollbar):
         ttk.Scrollbar.set(self, lo, hi)
 
 
+class ResizingCanvas(tk.Canvas):
+    def __init__(self,parent, **kwargs):
+        tk.Canvas.__init__(self, parent, **kwargs)
+        self.bind("<Configure>", self.on_resize)
+        self.height = self.winfo_reqheight()
+        self.width = self.winfo_reqwidth()
 class TrackTooltip:
     def __init__(self, treeview):
         self.treeview = treeview
@@ -298,8 +304,8 @@ class MainApplication(ttk.Frame):
         self.size = [WIDTH, HEIGHT]
         self.create_menu()
         self.create_widgets()
-        self.columnconfigure(0, weight=0)
-        self.columnconfigure(1, weight=1)
+        self.columnconfigure(0, weight=1)
+        self.columnconfigure(1, weight=0)
         self.rowconfigure(0, weight=1)
         self.fullscreen = False
         self.repeat_album = False
@@ -308,6 +314,7 @@ class MainApplication(ttk.Frame):
         self.current_image = None
         self.selected_track_id = None
         self.playing_track_id = None
+        self.resize_after_id = None
 
         def update_player():
             try:
@@ -368,8 +375,10 @@ class MainApplication(ttk.Frame):
                 label="About ZAP",
                 command=lambda: HelpDialogue(self.master),
                 accelerator="F1")
+            view_menu_label = "View "  # hack to fix automatic MacOS View menu
         else:
             modifier = "Control"
+            view_menu_label = "View"
         self.file_menu = tk.Menu(self.menubar, tearoff=False)
         self.menubar.add_cascade(menu=self.file_menu, label="File")
 
@@ -391,9 +400,47 @@ class MainApplication(ttk.Frame):
         self.menubar.add_cascade(menu=self.options_menu, label="Options")
         self.options_menu.add_checkbutton(label="Repeat",
                                           command=self.toggle_repeat_album)
-        self.options_menu.add_checkbutton(label="Fullscreen",
-                                          command=self.toggle_fullscreen,
-                                          accelerator="F11")
+        self.view_menu = tk.Menu(self.menubar, tearoff=False)
+        self.menubar.add_cascade(menu=self.view_menu, label=view_menu_label)
+        self.view_presets_menu = tk.Menu(self.view_menu, tearoff=False)
+        self.view_menu.add_cascade(menu=self.view_presets_menu, label="Preset")
+        self.view_presets_menu.add_command(
+            label="Minimal",
+            command=lambda: self.set_view_preset("minimal"),
+            accelerator=f"{modifier}-1")
+        self.parent.bind(f"<{modifier}-Key-1>",
+                         lambda e: self.set_view_preset("minimal"))
+        self.view_presets_menu.add_command(
+            label="Compact",
+            command=lambda: self.set_view_preset("compact"),
+            accelerator=f"{modifier}-2")
+        self.parent.bind(f"<{modifier}-Key-2>",
+                         lambda e: self.set_view_preset("compact"))
+        self.view_presets_menu.add_command(
+            label="Small",
+            command=lambda: self.set_view_preset("small"),
+            accelerator=f"{modifier}-3")
+        self.parent.bind(f"<{modifier}-Key-3>",
+                         lambda e: self.set_view_preset("small"))
+        self.view_presets_menu.add_command(
+            label="Default",
+            command=lambda: self.set_view_preset("default"),
+            accelerator=f"{modifier}-4")
+        self.parent.bind(f"<{modifier}-Key-4>",
+                         lambda e: self.set_view_preset("default"))
+        self.view_presets_menu.add_command(
+            label="Large",
+            command=lambda: self.set_view_preset("large"),
+            accelerator=f"{modifier}-5")
+        self.parent.bind(f"<{modifier}-Key-5>",
+                         lambda e: self.set_view_preset("large"))
+        self.view_menu.add_command(label="Fit to slides",
+                                   command=self.fit_to_slides,
+                                   accelerator=f"{modifier}-0")
+        self.parent.bind(f"<{modifier}-Key-0>", self.fit_to_slides)
+        self.view_menu.add_checkbutton(label="Fullscreen",
+                                       command=self.toggle_fullscreen,
+                                       accelerator="F11")
         self.parent.bind("<F11>", lambda e: self.toggle_fullscreen())
 
         if platform.system() != "Darwin":
@@ -416,41 +463,72 @@ class MainApplication(ttk.Frame):
     def create_widgets(self):
         """Contains all widgets in main application."""
 
-        frame_left = tk.Frame(self)
-        frame_left.grid(column=0, row=0, sticky="n")
-        frame_left.columnconfigure(0, weight=1)
-        frame_left.rowconfigure(1, weight=1)
-        self.canvas = tk.Canvas(frame_left, width=HEIGHT, height=HEIGHT,
-                                bg=COLOUR, borderwidth=0,
-                                highlightthickness=0)
+        #self.frame_left = tk.Frame(self)
+        #self.frame_left.grid(column=0, row=0, sticky="n")
+        #self.frame_left.columnconfigure(0, weight=1)
+        #self.frame_left.rowconfigure(1, weight=1)
+        self.canvas = ResizingCanvas(self, width=HEIGHT, height=HEIGHT,
+                                     bg=COLOUR, borderwidth=0,
+                                     highlightthickness=0)
         im = Image.open(os.path.abspath(os.path.join(
             os.path.split(__file__)[0], "no_album.png")))
         im = im.resize((HEIGHT, HEIGHT), Image.LANCZOS)
         self.canvas.image = ImageTk.PhotoImage(im)
         im.close()
-        self.canvas_image = self.canvas.create_image(
-                0, 0, image=self.canvas.image, anchor="nw")
-        self.canvas.grid(column=0, row=0)
-        self.canvas_left_bg = self.canvas.create_frame(50, HEIGHT/2,
-                                                       20, fill="",
+        self.canvas_image = self.canvas.create_image(self.canvas.width/2,
+                                                     self.canvas.height/2,
+                                                     image=self.canvas.image,
+                                                     anchor="center")
+        self.canvas.grid(column=0, row=0, sticky="nsew")
+        self.canvas_left_bg = self.canvas.create_frame(50*SCALING, HEIGHT/2,
+                                                       20*SCALING, fill="",
                                                        width=0)
-        self.canvas_right_bg = self.canvas.create_frame(HEIGHT-50, HEIGHT/2,
-                                                        20, fill="",
+        self.canvas_right_bg = self.canvas.create_frame(HEIGHT-50*SCALING,
+                                                        HEIGHT/2,
+                                                        20*SCALING, fill="",
                                                         width=0)
-        self.canvas_left_fg = self.canvas.create_text(50, HEIGHT/2,
-                                                      anchor="center")
-        self.canvas_right_fg = self.canvas.create_text(HEIGHT-50, HEIGHT/2,
-                                                       anchor="center")
-        self.canvas.itemconfig(self.canvas_left_fg, text="❮", fill="",
-                               font=(FONTNAME, FONTSIZE+10))
-        self.canvas.itemconfig(self.canvas_right_fg, text="❯", fill="",
-                               font=(FONTNAME, FONTSIZE+10))
+        self.canvas_left_fg = self.canvas.create_polygon([52*SCALING,
+                                                          HEIGHT/2-10*SCALING,
+                                                          42*SCALING,
+                                                          HEIGHT/2,
+                                                          52*SCALING,
+                                                          HEIGHT/2+10*SCALING,
+                                                          58*SCALING,
+                                                          HEIGHT/2+10,
+                                                          48*SCALING,
+                                                          HEIGHT/2,
+                                                          58*SCALING,
+                                                          HEIGHT/2-10],
+                                                         fill='black')
+        #self.canvas_left_fg = self.canvas.create_text(50, HEIGHT/2,
+                                                      #anchor="center")
+        self.canvas_right_fg = self.canvas.create_polygon([HEIGHT-52*SCALING,
+                                                           HEIGHT/2-10*SCALING,
+                                                           HEIGHT-42*SCALING,
+                                                           HEIGHT/2,
+                                                           HEIGHT-52*SCALING,
+                                                           HEIGHT/2+10*SCALING,
+                                                           HEIGHT-58*SCALING,
+                                                           HEIGHT/2+10*SCALING,
+                                                           HEIGHT-48*SCALING,
+                                                           HEIGHT/2,
+                                                           HEIGHT-58*SCALING,
+                                                           HEIGHT/2-10*SCALING],
+                                                          fill='black')
+        #self.canvas_right_fg = self.canvas.create_text(HEIGHT-50, HEIGHT/2,
+                                                       #anchor="center")
+        #self.canvas.itemconfig(self.canvas_left_fg, text="❮", fill="",
+        #                       font=(FONTNAME, FONTSIZE+10))
+        #self.canvas.itemconfig(self.canvas_right_fg, text="❯", fill="",
+                               #font=(FONTNAME, FONTSIZE+10))
         self.canvas_arrow_right = False
         self.canvas_arrow_left = False
+        self.canvas.addtag_all("all")
+        #self.frame_left.bind("<Configure>", self.canvas.on_resize)
 
-        frame_right = ttk.Frame(self)
+        frame_right = ttk.Frame(self, width=WIDTH-HEIGHT)
         frame_right.grid(column=1, row=0, sticky="nesw")
-        frame_right.columnconfigure(0, weight=1)
+        frame_right.columnconfigure(0, minsize=WIDTH-HEIGHT, weight=1)
         frame_right.rowconfigure(1, weight=1)
         frame_up = ttk.Frame(frame_right)
         frame_up.grid(column=0, row=0, sticky="nesw")
@@ -473,7 +551,7 @@ class MainApplication(ttk.Frame):
         if SCALING > 1:
             self.style.configure("Treeview", rowheight=int(13 * (SCALING * 1.6)))
 
-        tree_frame = ttk.Frame(frame_right)
+        tree_frame = ttk.Frame(frame_right, width=WIDTH-HEIGHT)
         tree_frame.grid(column=0, row=1, sticky="nesw")
         tree_frame.columnconfigure(0, weight=1)
         tree_frame.rowconfigure(0, weight=1)
@@ -490,9 +568,9 @@ class MainApplication(ttk.Frame):
         self.tree["columns"] = ("#", "Title", "Length")
         bold_font = tkfont.Font(family=FONTNAME, size=FONTSIZE, weight="bold")
         self.tree.column('#0', width=0, stretch=False)
-        self.tree.column('#', anchor="e", stretch=False)
-        self.tree.column('Title', anchor="w", stretch=True)
-        self.tree.column('Length', anchor="e", stretch=False)
+        self.tree.column('#', width=0, anchor="e", stretch=False)
+        self.tree.column('Title', width=0, anchor="w", stretch=True)
+        self.tree.column('Length', width=0, anchor="e", stretch=False)
         self.tree_vscrollbar = AutoScrollbar(tree_frame, orient='vertical',
                                              command=self.tree.yview)
         self.tree_vscrollbar.grid(row=0, column=1, sticky='nsew')
@@ -545,12 +623,13 @@ class MainApplication(ttk.Frame):
                                    font=(FONTNAME, FONTSIZE-2))
         self.trackinfo.grid(column=1, row=2, pady=(PADDING/2, 0))
 
+
         for child in self.winfo_children():
             child.grid_configure(padx=0, pady=0)
 
     def create_bindings(self):
 
-        self.parent.bind("<Configure>", self.truncate_titles)
+        self.parent.bind("<Configure>", self.schedule_resize)  #self.truncate_titles)
 
         # Keyboard (global)
         def increment_track(step):
@@ -741,7 +820,8 @@ class MainApplication(ttk.Frame):
                 bg.paste(im, offset)
                 im = bg
 
-            im = im.resize((self.size[1], self.size[1]), Image.LANCZOS)
+            dim = min(self.canvas.width, self.canvas.height)
+            im = im.resize((dim, dim), Image.LANCZOS)
             self.canvas.image = ImageTk.PhotoImage(im)
             im.close()
             try:
@@ -749,7 +829,8 @@ class MainApplication(ttk.Frame):
             except:
                 pass
             self.canvas_image = self.canvas.create_image(
-                0, 0, image=self.canvas.image, anchor="nw")
+                self.canvas.width // 2, self.canvas.height // 2,
+                image=self.canvas.image, anchor="center")
             self.canvas.tag_lower(self.canvas_image)
             self.current_image = nr
             if nr < self.loaded_album.nr_of_slides - 1:
@@ -786,7 +867,8 @@ class MainApplication(ttk.Frame):
         self.canvas.image = ImageTk.PhotoImage(im)
         im.close()
         self.canvas_image = self.canvas.create_image(
-                0, 0, image=self.canvas.image, anchor="nw")
+            self.canvas.width/2, self.canvas.height/2,
+            image=self.canvas.image, anchor="center")
         self.loaded_album = None
         if self.playing_track_id is not None:
             self.pause()
@@ -830,7 +912,14 @@ class MainApplication(ttk.Frame):
         self.tree.column('Length', width=c2_width)
         # Hack: For some reason the treeview colums do not stretch correctly
         # initially, so hardcode all column sizes
-        c1_width = self.size[0]-self.size[1]-2-c0_width-c2_width  # 2=2x1 frame borders
+        if self.fullscreen:
+            size = self.parent.winfo_geometry().split("+")[0]
+            width = int(size.split("x")[0])
+            height = int(size.split("x")[1])
+        else:
+            width = WIDTH
+            height = HEIGHT
+        c1_width = width - height -2 - c0_width - c2_width  # 2=2x1 frame borders
         self.tree.column('Title', width=c1_width)
         for c, track in enumerate(self.loaded_album.tracklist):
             if c % 2 == 1:
@@ -841,6 +930,7 @@ class MainApplication(ttk.Frame):
                              values=track["display"])
         self.tree.selection_set(["0"])
         self.selected_track_id = 0
+        self.truncate_titles()
 
         print(f"Loaded album: {path}")
 
@@ -961,9 +1051,13 @@ class MainApplication(ttk.Frame):
             width = event.width
             if width < self.size[0]:
                 return
+        width = self.size[0]
+        if self.fullscreen:
+            tree_width = self.size[0] - self.size[1]
+
         else:
-            width = self.size[0]
-        col_width = width - self.size[1] - \
+            tree_width = WIDTH - HEIGHT
+        col_width = tree_width - \
                     self.tree.column('0')['width'] - \
                     self.tree.column('2')['width'] - CELLPADDING
         tracks = [x["display"] for x in self.loaded_album.tracklist]
@@ -1083,12 +1177,81 @@ class MainApplication(ttk.Frame):
         else:
             self.play()
 
+    def schedule_resize(self, event):
+        if not (self.fullscreen or self.size == [event.width, event.height]):
+            self.parent.resizable(True, True)
+            if self.resize_after_id:
+                self.after_cancel(self.resize_after_id)
+            self.resize_after_id = self.after(100, self.resize)
+
+    def resize(self, size=None):
+        if size:
+            width = size[0]
+            height = size[1]
+        else:
+            size = self.parent.winfo_geometry().split("+")[0]
+            width = int(size.split("x")[0])
+            height = int(size.split("x")[1])
+        self.canvas["width"] = height
+        self.canvas["height"] = height
+        self.size = [width, height]
+        #self.canvas.frame_coords(self.canvas_left_bg, 50, height/2, 20)
+        #self.canvas.frame_coords(self.canvas_right_bg, height-50, height/2, 20)
+        #self.canvas.coords(self.canvas_left_fg, 50, height/2)
+        #self.canvas.coords(self.canvas_right_fg, height-50, height/2)
+        #self.size = [width, height]
+        if self.loaded_album is None:
+            current_image = -1
+        else:
+            current_image = self.current_image
+        self.show_image(current_image)
+
+    def set_view_preset(self, preset="default", event=None):
+        global HEIGHT
+        global WIDTH
+        if preset == "minimal":
+            width = WIDTH-HEIGHT
+            height = 0
+        elif preset == "compact":
+            width = WIDTH - HEIGHT
+            height = WIDTH - HEIGHT
+        elif preset == "small":
+            width = (WIDTH - HEIGHT) * 2
+            height = WIDTH - HEIGHT
+        elif preset == "default":
+            width = WIDTH
+            height = HEIGHT
+        elif preset == "large":
+            #if platform.system() in ("Windows", "Darwin"):
+            #    self.parent.state("zoomed")
+            #else:
+            #    self.parent.wm_attributes("zoomed", True)
+            #self.fit_to_slides()
+            #return
+            max_width, max_height = self.parent.maxsize()
+            if max_width > max_height:
+                width = max_height + (WIDTH - HEIGHT)
+                height = max_height
+            else:
+                width = max_width
+                height = max_width - (WIDTH - HEIGHT)
+        self.parent.geometry(f"{width}x{height}")
+
+    def fit_to_slides(self, event=None):
+        if not self.fullscreen:
+            width = self.parent.winfo_width() - (WIDTH - HEIGHT)
+            height = self.parent.winfo_height()
+            if width > height:
+                self.parent.geometry(f"{height + (WIDTH - HEIGHT)}x{height}")
+            elif width < height:
+                self.parent.geometry(f"{width + (WIDTH - HEIGHT)}x{width}")
+
     def toggle_fullscreen(self):
-        fullscreen = not self.fullscreen
-        if fullscreen:
+        self.fullscreen = not self.fullscreen
+        if self.fullscreen:
             self.parent.withdraw()
-        self.parent.attributes("-fullscreen", fullscreen)
-        if fullscreen:
+        self.parent.attributes("-fullscreen", self.fullscreen)
+        if self.fullscreen:
             self.update()
             self.update()
             self.parent.deiconify()
@@ -1099,26 +1262,17 @@ class MainApplication(ttk.Frame):
         else:
             width = WIDTH
             height = HEIGHT
-
-        self.canvas["width"] = height
-        self.canvas["height"] = height
-        self.canvas.frame_coords(self.canvas_left_bg, 50, height/2, 20)
-        self.canvas.frame_coords(self.canvas_right_bg, height-50, height/2, 20)
-        self.canvas.coords(self.canvas_left_fg, 50, height/2)
-        self.canvas.coords(self.canvas_right_fg, height-50, height/2)
-        self.size = [width, height]
-        if self.loaded_album is None:
-            current_image = -1
-        else:
-            current_image = self.current_image
-        self.show_image(current_image)
+        self.resize((width, height))
         self.title.configure(wraplength=width-height-2*PADDING)
         self.artist.configure(wraplength=width-height-2*PADDING)
-        self.parent.columnconfigure(0, weight=int(fullscreen))
-        self.parent.rowconfigure(0, weight=int(fullscreen))
-        self.parent.resizable(fullscreen, fullscreen)
-        self.parent.geometry(f"{width}x{height}")
-        self.fullscreen = fullscreen
+        #self.parent.columnconfigure(0, weight=int(self.fullscreen))
+        #self.parent.columnconfigure(1, weight=int(not self.fullscreen))
+        #self.parent.rowconfigure(0, weight=int(self.fullscreen))
+        self.columnconfigure(0, weight=int(not self.fullscreen))
+        self.columnconfigure(1, weight=int(self.fullscreen))
+
+        self.parent.geometry(f"{width}x{height}+0+0")
+        self.truncate_titles()
 
     def toggle_repeat_album(self):
         if self.repeat_album:
@@ -1159,10 +1313,10 @@ def run():
             pass
 
     root = tk.Tk()
+    #root.aspect(1024, 600, 1024, 600)
     dpi = root.winfo_fpixels('1i')
     root.tk.call('tk', 'scaling', SCALING * (dpi / 72.0))
     root.withdraw()
-    root.resizable(False, False)
     app = MainApplication(root, padding="0 0 0 0")
     app.set_title()
     if platform.system() == "Windows":
@@ -1176,10 +1330,13 @@ def run():
     root.geometry(f"{WIDTH}x{HEIGHT}")
     root.update()
     root.deiconify()
-    root.minsize(root.winfo_width(), root.winfo_height())
+    root.minsize(WIDTH-HEIGHT, 0)
+    #root.geometry(f"424x0")
     root.lift()
     root.focus_force()
     root.protocol('WM_DELETE_WINDOW', app.quit)
+
+
 
     try:
         app.load_album(os.path.abspath(sys.argv[1]))
