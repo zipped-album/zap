@@ -25,7 +25,7 @@ pipx install Zipped-Album-Player
 
 1. **Make sure you have Python 3 with Tkinter support installed**
    
-   If not, install it. For instance: https://www.python.org/ftp/python/3.10.1/python-3.10.1-macos11.pkg.
+   If not, install it. For instance with this installer: https://www.python.org/ftp/python/3.10.1/python-3.10.1-macos11.pkg
    
 2. **Make sure FFmpeg shared libraries are installed**
    
@@ -52,12 +52,11 @@ pipx install Zipped-Album-Player
 
 1. **Make sure you have Python 3 with Tkinter support installed**
    
-   If not, install it. For instance: https://www.python.org/ftp/python/3.10.1/python-3.10.1-amd64.exe
+   If not, install it. For instance with this installer: https://www.python.org/ftp/python/3.10.1/python-3.10.1-amd64.exe
    
 2. **Make sure FFmpeg shared libraries are installed**
    
-   If not, install them.
-   For example:
+   If not, install them. For instance:
     * Download https://github.com/GyanD/codexffmpeg/releases/download/4.4/ffmpeg-4.4-full_build-shared.zip
     * Unzip to `C:\FFmpeg\`
     * Add `C:\FFmpeg\bin\` to your environment variable `PATH`
