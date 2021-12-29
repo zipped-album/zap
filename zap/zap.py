@@ -317,6 +317,7 @@ class MainApplication(ttk.Frame):
         self.size = [WIDTH, HEIGHT]
         self.create_menu()
         self.create_widgets()
+        self.remove_arrows()
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=0)
         self.rowconfigure(0, weight=1)
@@ -1212,7 +1213,7 @@ class MainApplication(ttk.Frame):
         #self.canvas.coords(self.canvas_right_fg, height-50, height/2)
         #self.size = [width, height]
         if self.loaded_album is None:
-            current_image = -1
+            current_image = None
         else:
             current_image = self.current_image
         self.show_image(current_image)
@@ -1284,7 +1285,7 @@ class MainApplication(ttk.Frame):
         #self.parent.rowconfigure(0, weight=int(self.fullscreen))
         #self.parent.geometry(f"{width}x{height}+0+0")
         if self.loaded_album is None:
-            current_image = -1
+            current_image = None
         else:
             current_image = self.current_image
         self.show_image(current_image)
