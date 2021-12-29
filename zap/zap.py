@@ -1191,7 +1191,6 @@ class MainApplication(ttk.Frame):
 
     def schedule_resize(self, event):
         if not (self.size == [event.width, event.height]):
-            #self.parent.resizable(True, True)
             if self.resize_after_id:
                 self.after_cancel(self.resize_after_id)
             self.resize_after_id = self.after(100, self.resize)
@@ -1330,7 +1329,6 @@ def run():
             pass
 
     root = tk.Tk()
-    #root.aspect(1024, 600, 1024, 600)
     dpi = root.winfo_fpixels('1i')
     root.tk.call('tk', 'scaling', SCALING * (dpi / 72.0))
     root.withdraw()
@@ -1348,12 +1346,9 @@ def run():
     root.update()
     root.deiconify()
     root.minsize(WIDTH-HEIGHT, 0)
-    #root.geometry(f"424x0")
     root.lift()
     root.focus_force()
     root.protocol('WM_DELETE_WINDOW', app.quit)
-
-
 
     try:
         app.load_album(os.path.abspath(sys.argv[1]))
