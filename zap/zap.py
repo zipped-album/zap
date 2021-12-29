@@ -1191,7 +1191,7 @@ class MainApplication(ttk.Frame):
 
     def schedule_resize(self, event):
         if not (self.size == [event.width, event.height]):
-            self.parent.resizable(True, True)
+            #self.parent.resizable(True, True)
             if self.resize_after_id:
                 self.after_cancel(self.resize_after_id)
             self.resize_after_id = self.after(100, self.resize)
