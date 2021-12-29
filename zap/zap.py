@@ -507,11 +507,11 @@ class MainApplication(ttk.Frame):
                                                           52*SCALING,
                                                           HEIGHT/2+10*SCALING,
                                                           58*SCALING,
-                                                          HEIGHT/2+10,
+                                                          HEIGHT/2+10*SCALING,
                                                           48*SCALING,
                                                           HEIGHT/2,
                                                           58*SCALING,
-                                                          HEIGHT/2-10],
+                                                          HEIGHT/2-10*SCALING],
                                                          fill='black')
         #self.canvas_left_fg = self.canvas.create_text(50, HEIGHT/2,
                                                       #anchor="center")
@@ -1067,7 +1067,6 @@ class MainApplication(ttk.Frame):
         width = self.size[0]
         if self.fullscreen:
             tree_width = self.size[0] - self.size[1]
-
         else:
             tree_width = WIDTH - HEIGHT
         col_width = tree_width - \
@@ -1191,7 +1190,7 @@ class MainApplication(ttk.Frame):
             self.play()
 
     def schedule_resize(self, event):
-        if not (self.fullscreen or self.size == [event.width, event.height]):
+        if not (self.size == [event.width, event.height]):
             self.parent.resizable(True, True)
             if self.resize_after_id:
                 self.after_cancel(self.resize_after_id)
@@ -1261,30 +1260,35 @@ class MainApplication(ttk.Frame):
 
     def toggle_fullscreen(self):
         self.fullscreen = not self.fullscreen
-        if self.fullscreen:
-            self.parent.withdraw()
+        self.columnconfigure(0, weight=int(not self.fullscreen))
+        self.columnconfigure(1, weight=int(self.fullscreen))
+        #if self.fullscreen:
+        #    self.parent.withdraw()
         self.parent.attributes("-fullscreen", self.fullscreen)
         if self.fullscreen:
             self.update()
             self.update()
-            self.parent.deiconify()
+            #self.parent.deiconify()
             size = self.parent.winfo_geometry().split("+")[0]
             width = int(size.split("x")[0])
             height = int(size.split("x")[1])
-            self.parent.state("normal")
+            #self.parent.state("normal")
         else:
             width = WIDTH
             height = HEIGHT
+        self.size = (width, height)
         self.resize((width, height))
         self.title.configure(wraplength=width-height-2*PADDING)
         self.artist.configure(wraplength=width-height-2*PADDING)
         #self.parent.columnconfigure(0, weight=int(self.fullscreen))
         #self.parent.columnconfigure(1, weight=int(not self.fullscreen))
         #self.parent.rowconfigure(0, weight=int(self.fullscreen))
-        self.columnconfigure(0, weight=int(not self.fullscreen))
-        self.columnconfigure(1, weight=int(self.fullscreen))
-
-        self.parent.geometry(f"{width}x{height}+0+0")
+        #self.parent.geometry(f"{width}x{height}+0+0")
+        if self.loaded_album is None:
+            current_image = -1
+        else:
+            current_image = self.current_image
+        self.show_image(current_image)
         self.truncate_titles()
 
     def toggle_repeat_album(self):
