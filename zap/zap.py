@@ -455,7 +455,8 @@ class MainApplication(ttk.Frame):
         self.view_menu.add_checkbutton(label="Fullscreen",
                                        command=self.toggle_fullscreen,
                                        accelerator="F11")
-        self.parent.bind("<F11>", lambda e: self.toggle_fullscreen())
+        if platform.system() != "Darwin":
+            self.parent.bind("<F11>", lambda e: self.toggle_fullscreen())
 
         if platform.system() != "Darwin":
             self.file_menu.add_command(label="Quit",
@@ -467,8 +468,8 @@ class MainApplication(ttk.Frame):
                 label="About",
                 command=lambda: HelpDialogue(self.master),
                 accelerator="F1")
+            self.parent.bind("<F1>", lambda e: HelpDialogue(self.master))
 
-        self.parent.bind("<F1>", lambda e: HelpDialogue(self.master))
         self.parent.bind(f"<{modifier}-q>",
                          lambda e: self.quit())
 
