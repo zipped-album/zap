@@ -1351,6 +1351,9 @@ def run():
     root.lift()
     root.focus_force()
     root.protocol('WM_DELETE_WINDOW', app.quit)
+    root.geometry(f"{WIDTH-1}x{HEIGHT-1}")  # hack for removing empty scrollbar
+    root.update_idletasks()
+    root.geometry(f"{WIDTH}x{HEIGHT}")
 
     try:
         app.load_album(os.path.abspath(sys.argv[1]))
