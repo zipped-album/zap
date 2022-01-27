@@ -820,7 +820,7 @@ class MainApplication(ttk.Frame):
     def show_image(self, nr=0):
         try:
             if nr is None:
-                nr = 0
+                nr = -1
             if nr == -1:
                 im = Image.open(os.path.abspath(os.path.join(
             os.path.split(__file__)[0], "no_album.png")))
@@ -876,14 +876,7 @@ class MainApplication(ttk.Frame):
         # Clear current state
         self.parent.title("ZAP")
         self.hide_image()
-        im = Image.open(os.path.abspath(os.path.join(
-            os.path.split(__file__)[0], "no_album.png")))
-        im = im.resize((self.size[1], self.size[1]), Image.LANCZOS)
-        self.canvas.image = ImageTk.PhotoImage(im)
-        im.close()
-        self.canvas_image = self.canvas.create_image(
-            self.canvas.width/2, self.canvas.height/2,
-            image=self.canvas.image, anchor="center")
+        self.show_image(-1)
         self.loaded_album = None
         if self.playing_track_id is not None:
             self.pause()
