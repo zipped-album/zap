@@ -851,7 +851,10 @@ class MainApplication(ttk.Frame):
                 self.canvas.width // 2, self.canvas.height // 2,
                 image=self.canvas.image, anchor="center")
             self.canvas.tag_lower(self.canvas_image)
-            self.current_image = nr
+            if nr == -1:
+                self.current_image = None
+            else:
+                self.current_image = nr
             if nr < self.loaded_album.nr_of_slides - 1:
                 self.canvas_arrow_right = True
             else:
