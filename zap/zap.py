@@ -321,6 +321,7 @@ class MainApplication(ttk.Frame):
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=0)
         self.rowconfigure(0, weight=1)
+        self.always_on_top = False
         self.fullscreen = False
         self.repeat_album = False
         self.create_bindings()
@@ -452,6 +453,9 @@ class MainApplication(ttk.Frame):
                                    command=self.fit_to_slides,
                                    accelerator=f"{modifier}-0")
         self.parent.bind(f"<{modifier}-Key-0>", self.fit_to_slides)
+        self.view_menu.add_checkbutton(
+            label="Always on top",
+            command=self.toggle_always_on_top)
         self.view_menu.add_checkbutton(label="Fullscreen",
                                        command=self.toggle_fullscreen,
                                        accelerator="F11")
@@ -660,7 +664,7 @@ class MainApplication(ttk.Frame):
                 self.tree.selection_set([str(selected_track_id)])
                 self.selected_track_id = selected_track_id
                 self.load_track()
-                self.parent.update()
+                #self.parent.update()
                 self.player.clear_on_queue = True
                 self.player.seek(0.0)
                 if play_next:
@@ -1251,6 +1255,10 @@ class MainApplication(ttk.Frame):
                 self.parent.geometry(f"{height + (WIDTH - HEIGHT)}x{height}")
             elif width < height:
                 self.parent.geometry(f"{width + (WIDTH - HEIGHT)}x{width}")
+
+    def toggle_always_on_top(self, event=None):
+        self.parent.attributes('-topmost', not self.always_on_top)
+        self.always_on_top = not self.always_on_top
 
     def toggle_fullscreen(self):
         self.fullscreen = not self.fullscreen
