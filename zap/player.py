@@ -3,14 +3,26 @@ import sys
 import platform
 import tempfile
 
-import pyglet
-from pyglet.media.codecs.ffmpeg import *
+if platform.system() == "Windows":
+    PATH = "PATH"
+else:
+    PATH = "LD_LIBRARY_PATH"
+if not os.environ.get(PATH):
+    os.environ[PATH] = os.path.abspath(
+        os.path.join(os.path.split(__file__)[0], "lib"))
+else:
+    os.environ[PATH] += ":" + os.path.abspath(
+        os.path.join(os.path.split(__file__)[0], "lib"))
 
+import pyglet
 pyglet.options['search_local_libs'] = True
-pyglet.options['audio'] = ('openal', 'directsound', 'silent')
+
 if not pyglet.media.codecs.have_ffmpeg():
     print("Error: FFmpeg shared libraries (version 4) not found!")
     sys.exit()
+
+from pyglet.media.codecs.ffmpeg import *
+pyglet.options['audio'] = ('openal', 'directsound', 'silent')
 
 from .__meta__ import __author__, __version__
 
