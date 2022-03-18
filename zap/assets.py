@@ -88,7 +88,7 @@ def download_ffmpeg():
     url_base = \
         "https://github.com/zipped-album/zap/raw/main/assets/ffmpeg"
     filename = f"ffmpeg-{platform}.zip"
-    url = os.path.join(url_base, filename)
+    url = f"{url_base}/{filename}"
 
     try:
         r = Request(url, headers={"Accept-Encoding": "gzip; deflate"})
