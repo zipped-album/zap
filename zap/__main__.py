@@ -1,4 +1,4 @@
-from .assets import has_ffmpeg, download_ffmpeg
+from .binaries import has_ffmpeg, download_ffmpeg
 
 
 def run():
