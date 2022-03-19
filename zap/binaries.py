@@ -22,7 +22,7 @@ def _f(q):
             os.path.join(os.path.split(__file__)[0], "lib"))
         import pyglet
         q.put(pyglet.media.codecs.have_ffmpeg())
-    except Error:
+    except Exception:
         q.put(False)
 
 def has_ffmpeg():
