@@ -1,6 +1,7 @@
 import os
 import sys
 import platform
+import sysconfig
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError
 from tempfile import TemporaryFile
@@ -35,25 +36,55 @@ def has_ffmpeg():
     return q.get()
 
 def get_platform():
-    if sys.platform == 'win32':
-        if sys.maxsize > 2 ** 32:
-            return "windows_x64"
+    """Return a string with current platform (system and machine architecture).
+
+    This attempts to improve upon `sysconfig.get_platform` by fixing some
+    issues when running a Python interpreter with a different architecture than
+    that of the system (e.g. 32bit on 64bit system, or a multiarch build),
+    which should return the machine architecture of the currently running
+    interpreter rather than that of the system (which didn't seem to work
+    properly). The reported machine architectures follow platform-specific
+    naming conventions (e.g. "x86_64" on Linux, but "x64" on Windows).
+
+    Example output strings for common platforms:
+
+        darwin_(ppc|ppc64|i368|x86_64|arm64)
+        linux_(i686|x86_64|armv7l|aarch64)
+        windows_(x86|x64|arm32|arm64)
+
+    """
+
+    system = platform.system().lower()
+    machine = sysconfig.get_platform().split("-")[-1].lower()
+    is_64bit = sys.maxsize > 2 ** 32
+
+    if system == "darwin": # get machine architecture of multiarch binaries
+        if any([x in machine for x in ("fat", "intel", "universal")]):
+            machine = platform.machine().lower()
+
+    elif system == "linux":  # fix running 32bit interpreter on 64bit system
+        if not is_64bit and machine == "x86_64":
+            machine = "i686"
+        elif not is_64bit and machine == "aarch64":
+                machine = "armv7l"
+
+    elif system == "windows": # return more precise machine architecture names
+        if machine == "amd64":
+            machine = "x64"
+        elif machine == "win32":
+            if is_64bit:
+                machine = platform.machine().lower()
+            else:
+                machine = "x86"
+
+    # some more fixes based on examples in https://en.wikipedia.org/wiki/Uname
+    if not is_64bit and machine in ("x86_64", "amd64"):
+        if any([x in system for x in ("cygwin", "mingw", "msys")]):
+            machine = "i686"
         else:
-            return "windows_x86"
-    elif sys.platform.startswith("linux"):
-        if "armv7l" in sys.platform or "armv7l" in os.uname():
-            return "linux_armv7l"
-        elif "aarch64" in sys.platform or "aarch64" in os.uname():
-            return "linux_aarch64"
-        elif sys.maxsize > 2 ** 32:
-            return "linux_x64"
-        else:
-            return "linux_x86"
-    elif sys.platform == "darwin":
-        if "ARM64" in sys.platform or "ARM64" in os.uname():
-            return "macos_arm64"
-        elif sys.maxsize > 2 ** 32:
-            return "macos_x64"
+            machine = "i386"
+
+    return f"{system}_{machine}"
 
 def show_progress(progress, info="", length=46, symbols="[= ]", decimals=0):
     """Show the progress of a process with a simple text-based progress bar.
@@ -85,8 +116,7 @@ def show_progress(progress, info="", length=46, symbols="[= ]", decimals=0):
 
 def download_ffmpeg():
     platform = get_platform()
-    url_base = \
-        "https://github.com/zipped-album/zap-binaries/raw/main/ffmpeg"
+    url_base = "https://github.com/zipped-album/zap-binaries/raw/main/ffmpeg"
     filename = f"ffmpeg4-{platform}.zip"
     url = f"{url_base}/{filename}"
 
