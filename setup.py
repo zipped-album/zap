@@ -44,8 +44,8 @@ setup(
                         "pyglet==1.5.23"],
     entry_points={
         'gui_scripts': [
-            'zap = zap.zap:run',
-            'zipped-album-player = zap.zap:run',
+            'zap = zap.__main__:run',
+            'zipped-album-player = zap.__main__:run',
         ]
     }
 )
