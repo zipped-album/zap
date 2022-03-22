@@ -19,61 +19,58 @@ ZAP can be installed with [pipx](https://pypa.github.io/pipx/):
 pipx install Zipped-Album-Player
 ```
 
+If FFmpeg cannot be found on the system, ZAP will attempt to download a local
+copy.
+
 ### Detailed instructions
-
-#### MacOS
-
-1. **Make sure you have Python 3 with Tkinter support installed**
-   
-   If not, install it. For instance with this installer: https://www.python.org/ftp/python/3.10.1/python-3.10.1-macos11.pkg
-   
-2. **Make sure FFmpeg shared libraries are installed**
-   
-   If not, install them.
-   For instance, using Homebrew:
-   ```
-   brew install ffmpeg
-   ```
-   
-3. **Install pipx**
-   
-   ```
-   python3 -m pip install --user pipx
-   python3 -m pipx ensurepath
-   ```
-   
-4. **Install ZAP**
-
-   ```
-   pipx install Zipped-Album-Player
-   ```
 
 #### Windows
 
 1. **Make sure you have Python 3 with Tkinter support installed**
    
-   If not, install it. For instance with this installer: https://www.python.org/ftp/python/3.10.1/python-3.10.1-amd64.exe
+   If not, install it. For instance with this installer: https://www.python.org/ftp/python/3.10.3/python-3.10.3-amd64.exe
    
-2. **Make sure FFmpeg shared libraries are installed**
-   
-   If not, install them. For instance:
-    * Download https://github.com/GyanD/codexffmpeg/releases/download/4.4/ffmpeg-4.4-full_build-shared.zip
-    * Unzip to `C:\FFmpeg\`
-    * Add `C:\FFmpeg\bin\` to your environment variable `PATH`
-   
-3. **Install pipx**
+2. **Install pipx**
    
    ```
    python3 -m pip install --user pipx
    python3 -m pipx ensurepath
    ```
    
-4. **Install ZAP**
+3. **Install ZAP**
 
    ```
    pipx install Zipped-Album-Player
    ```
 
+#### MacOS
+
+1. **Make sure you have Python 3 with Tkinter support installed**
+   
+   If not, install it. For instance with this installer: https://www.python.org/ftp/python/3.10.3/python-3.10.3-macos11.pkg
+   
+2. **Install pipx**
+   
+   ```
+   python3 -m pip install --user pipx
+   python3 -m pipx ensurepath
+   ```
+   
+3. **Install ZAP**
+
+   ```
+   pipx install Zipped-Album-Player
+   ```
+
+**Note**:
+
+On ARM-based Macs you will, for now, still need to have FFmpeg 4 (shared
+libraries) installed on the system. You can install them, for instance, using
+Homebrew:
+```
+brew install ffmpeg@4
+```
+   
 #### Linux
 
 1. **Make sure you have Python 3 with Tkinter support installed**
@@ -83,31 +80,33 @@ pipx install Zipped-Album-Player
    sudo apt install python3 python3-venv python3-pip python3-tk
    ```
    
-2. **Make sure FFmpeg shared libraries are installed**
-   
-   If not, install them. For instance, on Debian-based distros:
-   ```
-   sudo apt install ffmpeg
-   ```
-   
-3. **Make sure OpenAL is installed**
+2. **Make sure OpenAL is installed**
 
    If not, install it. For instance, on Debian-based distros:
    ```
    sudo apt install libopenal1
    ```
    
-4. **Install pipx**
+3. **Make PyMuPDF and ImageTk are installed**
+
+   If not, install them. For instance, on Debian-based distros:
+   ```
+   sudo apt intall python3-fitz python3-pil.imagetk
+   ```
+
+5. **Install pipx**
    
    ```
    python3 -m pip install --user pipx
    python3 -m pipx ensurepath
    ```
    
-5. **Install ZAP**
+   or (if you installed PyMuPDF
+   
+6. **Install ZAP**
 
    ```
-   pipx install Zipped-Album-Player
+   pipx install --system-site-packages Zipped-Album-Player
    ```
    
 ## Usage
