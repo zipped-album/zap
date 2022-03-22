@@ -11,7 +11,6 @@
 * Keyboard navigation (with Vi-like alternatives)
 * Fullscreen mode
 
-
 ## Installation
 
 ZAP can be installed with [pipx](https://pypa.github.io/pipx/):
@@ -24,9 +23,7 @@ pipx install Zipped-Album-Player
 ZAP relies on FFmpeg to decode audio. If FFmpeg cannot be found on the system,
 ZAP will attempt to download a local copy the first time it is started.
 
-### Detailed instructions
-
-#### Windows
+### Windows
 
 1. **Make sure you have Python 3 with Tkinter support installed**
    
@@ -45,7 +42,7 @@ ZAP will attempt to download a local copy the first time it is started.
    pipx install Zipped-Album-Player
    ```
 
-#### MacOS
+### MacOS
 
 1. **Make sure you have Python 3 with Tkinter support installed**
    
@@ -73,7 +70,7 @@ Homebrew:
 brew install ffmpeg@4
 ```
    
-#### Linux
+### Linux
 
 1. **Make sure you have Python 3 with Tkinter support installed**
 
@@ -89,7 +86,7 @@ brew install ffmpeg@4
    sudo apt install libopenal1
    ```
    
-3. **Make PyMuPDF and ImageTk are installed**
+3. **Make sure PyMuPDF and ImageTk are installed**
 
    If not, install them. For instance, on Debian-based distros:
    ```
