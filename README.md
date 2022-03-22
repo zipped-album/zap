@@ -19,8 +19,10 @@ ZAP can be installed with [pipx](https://pypa.github.io/pipx/):
 pipx install Zipped-Album-Player
 ```
 
-If FFmpeg cannot be found on the system, ZAP will attempt to download a local
-copy.
+**Note:**
+
+ZAP relies on FFmpeg to decode audio. If FFmpeg cannot be found on the system,
+ZAP will attempt to download a local copy the first time it is started.
 
 ### Detailed instructions
 
