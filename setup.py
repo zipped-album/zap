@@ -18,11 +18,6 @@ def get_version():
 with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
 
-requirements = []
-with open("requirements.txt") as f:
-    for line in f:
-        requirements.append(line.strip())
-
 setup(
     name = 'Zipped Album Player',
     description = \
@@ -43,7 +38,10 @@ setup(
     package_data = {'zap': ['*.png',
                             '*.ico']},
     python_requires=">=3.6",
-    install_requires = requirements,
+    install_requires = ["pillow>=7.0.0,<=9.0.1",
+                        "PyMuPDF>=1.16.11,<=1.19.6",
+                        "audio-metadata==0.11.1",
+                        "pyglet==1.5.23"],
     entry_points={
         'gui_scripts': [
             'zap = zap.zap:run',
