@@ -14,12 +14,14 @@ def _f(q):
         import os
         import platform
         if platform.system() == "Windows":
-            PATH = "PATH"
+            path = "PATH"
+            sep = ";"
         else:
-            PATH = "LD_LIBRARY_PATH"
-        if not os.environ.get(PATH):
-            os.environ[PATH] = ""
-        os.environ[PATH] += ":" + os.path.abspath(
+            path = "LD_LIBRARY_PATH"
+            sep = ":"
+        if not os.environ.get(path):
+            os.environ[path] = ""
+        os.environ[path] += sep + os.path.abspath(
             os.path.join(os.path.split(__file__)[0], "lib"))
         import pyglet
         q.put(pyglet.media.codecs.have_ffmpeg())
