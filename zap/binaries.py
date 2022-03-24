@@ -24,6 +24,7 @@ def _f(q):
         os.environ[path] += sep + os.path.abspath(
             os.path.join(os.path.split(__file__)[0], "lib"))
         import pyglet
+        pyglet.options['search_local_libs'] = True
         q.put(pyglet.media.codecs.have_ffmpeg())
     except Exception:
         q.put(False)
