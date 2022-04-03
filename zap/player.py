@@ -19,9 +19,10 @@ else:
 import pyglet
 pyglet.options['search_local_libs'] = True
 
-if not pyglet.media.codecs.have_ffmpeg():
-    print("Error: FFmpeg shared libraries (version 4) not found!")
-    sys.exit()
+try:
+    assert pyglet.media.codecs.have_ffmpeg()
+except:
+    raise RuntimeError("Error loading FFmpeg shared libraries!")
 
 from pyglet.media.codecs.ffmpeg import *
 pyglet.options['audio'] = ('openal', 'directsound', 'silent')

@@ -23,6 +23,7 @@ try:
     import tkinter.font as tkfont
     from tkinter import scrolledtext
     from tkinter import filedialog
+    from tkinter import messagebox
 except ImportError:
     print("Error: Tkinter not found!")
 except ModuleNotFoundError:
@@ -33,7 +34,7 @@ from PIL import ImageTk, Image
 
 from .__meta__ import __author__, __version__
 from .album import ZippedAlbum
-from .player import AudioPlayer, GaplessAudioPlayer
+from .binaries import has_ffmpeg, download_ffmpeg, get_platform
 
 
 if "--SCALING" in sys.argv:
@@ -309,6 +310,72 @@ class HelpDialogue:
         self.top.destroy()
 
 
+class DownloadFFmpegDialogue:
+    def __init__(self, master):
+        self.master = master
+        top = self.top = tk.Toplevel(master)
+        top.title("")
+        top.resizable(False, False)
+
+        self.progressbar = ttk.Progressbar(top, length=WIDTH, maximum=100)
+        self.progressbar.grid(row=0, column=0, sticky="nesw")
+
+        top.protocol("WM_DELETE_WINDOW", lambda: None)
+
+        top.geometry("+%d+%d" % (master.winfo_rootx(), master.winfo_rooty()))
+
+        top.transient(self.master)
+        top.focus_force()
+        top.wait_visibility()
+        top.grab_set()
+        if platform.system() == "Windows":
+            master.wm_attributes("-disabled", True)
+
+    def start(self, *args):
+        def _progress(count, total, message=''):
+            """Progress callback function"""
+
+            percents = int(100.0 * count / float(total))
+            self.progressbar["value"] = percents
+            self.top.title(f"{message}")
+            self.top.update_idletasks()
+
+        try:
+            download_ffmpeg(_progress)
+            self.destroy()
+            messagebox.showinfo(title="Done",
+                                message="FFmpeg libraries have been "
+                                "downloaded successfully!")
+        except Exception as e:
+            try:
+                if e.status == 404:
+                    self.destroy()
+                    platform = get_platform()
+                    messagebox.showerror(title="No download available",
+                                         message="There is no download "
+                                         "available for this platform "
+                                         f"({platform})!\n\n"
+                                         "Please manually install FFmpeg "
+                                         "libraries (version 4) on your "
+                                         "system.")
+                else:
+                    raise Exception
+            except Exception:
+                if messagebox.askretrycancel(title="Download failed",
+                                             message="The download has failed "
+                                             "for an unknown reason!",
+                                             icon="error"):
+                    self.start()
+                else:
+                    self.destroy()
+
+    def destroy(self, *args):
+        if platform.system() == "Windows":
+            self.master.wm_attributes("-disabled", False)
+        self.top.grab_release()
+        self.top.destroy()
+
+
 class MainApplication(ttk.Frame):
     def __init__(self, parent, *args, **kwargs):
         ttk.Frame.__init__(self, parent, *args, **kwargs)
@@ -324,7 +391,7 @@ class MainApplication(ttk.Frame):
         self.always_on_top = False
         self.fullscreen = False
         self.repeat_album = False
-        self.create_bindings()
+        #self.create_bindings()
         self.loaded_album = None
         self.current_image = None
         self.selected_track_id = None
@@ -380,12 +447,21 @@ class MainApplication(ttk.Frame):
                 sec_str = str(seconds).rjust(2, '0')
                 self.playhead_label["text"] = f"{min_str}:{sec_str}"
 
+    def _open_album(self, e=None):
+        allowed_extensions = "*.zip *.zlbm"
+        filetypes = [("Zipped Album files", allowed_extensions),
+                     ("All files", "*.*")]
+        filename = filedialog.askopenfilename(filetypes=filetypes)
+        if filename:
+            self.load_album(filename)
+            self.parent.focus_force()
+
     def create_menu(self):
         self.menubar = tk.Menu(self.parent)
         if platform.system() == "Darwin":
             modifier = "Command"
             self.apple_menu = tk.Menu(self.menubar, name="apple")
-            self.menubar.add_cascade(menu=self.apple_menu)
+            self.menubar.add_cascade(menu=self.apple_menu, label="Python")
             self.apple_menu.add_command(
                 label="About ZAP",
                 command=lambda: HelpDialogue(self.master),
@@ -397,19 +473,9 @@ class MainApplication(ttk.Frame):
         self.file_menu = tk.Menu(self.menubar, tearoff=False)
         self.menubar.add_cascade(menu=self.file_menu, label="File")
 
-        def open_album(e=None):
-            allowed_extensions = "*.zip *.zlbm"
-            filetypes = [("Zipped Album files", allowed_extensions),
-                         ("All files", "*.*")]
-            filename = filedialog.askopenfilename(filetypes=filetypes)
-            if filename:
-                self.load_album(filename)
-            self.parent.focus_force()
-
         self.file_menu.add_command(label="Open",
-                                   command=open_album,
+                                   command=self._open_album,
                                    accelerator=f"{modifier}-O")
-        self.parent.bind(f"<{modifier}-o>", open_album)
 
         self.options_menu = tk.Menu(self.menubar, tearoff=False)
         self.menubar.add_cascade(menu=self.options_menu, label="Options")
@@ -423,45 +489,31 @@ class MainApplication(ttk.Frame):
             label="Minimal",
             command=lambda: self.set_view_preset("minimal"),
             accelerator=f"{modifier}-1")
-        self.parent.bind(f"<{modifier}-Key-1>",
-                         lambda e: self.set_view_preset("minimal"))
         self.view_presets_menu.add_command(
             label="Compact",
             command=lambda: self.set_view_preset("compact"),
             accelerator=f"{modifier}-2")
-        self.parent.bind(f"<{modifier}-Key-2>",
-                         lambda e: self.set_view_preset("compact"))
         self.view_presets_menu.add_command(
             label="Small",
             command=lambda: self.set_view_preset("small"),
             accelerator=f"{modifier}-3")
-        self.parent.bind(f"<{modifier}-Key-3>",
-                         lambda e: self.set_view_preset("small"))
         self.view_presets_menu.add_command(
             label="Default",
             command=lambda: self.set_view_preset("default"),
             accelerator=f"{modifier}-4")
-        self.parent.bind(f"<{modifier}-Key-4>",
-                         lambda e: self.set_view_preset("default"))
         self.view_presets_menu.add_command(
             label="Large",
             command=lambda: self.set_view_preset("large"),
             accelerator=f"{modifier}-5")
-        self.parent.bind(f"<{modifier}-Key-5>",
-                         lambda e: self.set_view_preset("large"))
         self.view_menu.add_command(label="Fit to slides",
                                    command=self.fit_to_slides,
                                    accelerator=f"{modifier}-0")
-        self.parent.bind(f"<{modifier}-Key-0>", self.fit_to_slides)
         self.view_menu.add_checkbutton(
             label="Always on top",
             command=self.toggle_always_on_top)
         self.view_menu.add_checkbutton(label="Fullscreen",
                                        command=self.toggle_fullscreen,
                                        accelerator="F11")
-        if platform.system() != "Darwin":
-            self.parent.bind("<F11>", lambda e: self.toggle_fullscreen())
-
         if platform.system() != "Darwin":
             self.file_menu.add_command(label="Quit",
                                        command=self.quit,
@@ -472,12 +524,18 @@ class MainApplication(ttk.Frame):
                 label="About",
                 command=lambda: HelpDialogue(self.master),
                 accelerator="F1")
-            self.parent.bind("<F1>", lambda e: HelpDialogue(self.master))
-
-        self.parent.bind(f"<{modifier}-q>",
-                         lambda e: self.quit())
 
         self.parent["menu"] = self.menubar
+
+    def change_menu_state(self, state):
+        self.menubar.entryconfig("File", state=state)
+        self.menubar.entryconfig("Options", state=state)
+        if platform.system() == "Darwin":
+            self.menubar.entryconfig("Python", state=state)
+            self.menubar.entryconfig("View ", state=state)
+        else:
+            self.menubar.entryconfig("View", state=state)
+            self.menubar.entryconfig("Help", state=state)
 
     def create_widgets(self):
         """Contains all widgets in main application."""
@@ -651,6 +709,27 @@ class MainApplication(ttk.Frame):
         self.parent.bind("<Configure>", self.schedule_resize)  #self.truncate_titles)
 
         # Keyboard (global)
+        if platform.system() == "Darwin":
+            modifier = "Command"
+        else:
+            modifier = "Control"
+        self.parent.bind(f"<{modifier}-o>", self._open_album)
+        self.parent.bind(f"<{modifier}-Key-1>",
+                         lambda e: self.set_view_preset("minimal"))
+        self.parent.bind(f"<{modifier}-Key-2>",
+                         lambda e: self.set_view_preset("compact"))
+        self.parent.bind(f"<{modifier}-Key-3>",
+                         lambda e: self.set_view_preset("small"))
+        self.parent.bind(f"<{modifier}-Key-4>",
+                         lambda e: self.set_view_preset("default"))
+        self.parent.bind(f"<{modifier}-Key-5>",
+                         lambda e: self.set_view_preset("large"))
+        self.parent.bind(f"<{modifier}-Key-0>", self.fit_to_slides)
+        if platform.system() != "Darwin":
+            self.parent.bind("<F11>", lambda e: self.toggle_fullscreen())
+            self.parent.bind("<F1>", lambda e: HelpDialogue(self.master))
+        self.parent.bind(f"<{modifier}-q>", lambda e: self.quit())
+
         def increment_track(step):
             selected_track_id = self.selected_track_id + step
             if 0 <= selected_track_id < len(self.loaded_album.tracklist):
@@ -1359,11 +1438,33 @@ def run():
     root.update_idletasks()
     root.geometry(f"{WIDTH}x{HEIGHT}")
 
+    from .binaries import has_ffmpeg
+    if not has_ffmpeg():
+        app.change_menu_state("disabled")
+        if messagebox.askyesno(title="Download FFmpeg",
+                               message="Required FFmpeg libraries could not"
+                               " be found on the system!\n\n"
+                               "Attempt to download a local copy?"):
+            DownloadFFmpegDialogue(app).start()
+            app.change_menu_state("normal")
+
+    try:
+        global AudioPlayer, GaplessAudioPlayer
+        from .player import AudioPlayer, GaplessAudioPlayer
+    except RuntimeError as e:
+        if "ffmpeg" in repr(e).lower():
+            messagebox.showerror(title="FFmpeg error",
+                                 message="There was an error loading the "
+                                         "required FFmpeg libraries!"
+                                         "\n\nThe application will close now.")
+            sys.exit()
+
     try:
         app.load_album(os.path.abspath(sys.argv[1]))
     except:
         pass
 
+    app.create_bindings()
     root.mainloop()
 
 
