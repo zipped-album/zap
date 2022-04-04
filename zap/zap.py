@@ -314,22 +314,27 @@ class DownloadFFmpegDialogue:
     def __init__(self, master):
         self.master = master
         top = self.top = tk.Toplevel(master)
-        top.title("")
+        top.title("Download")
         top.resizable(False, False)
 
+        self.text1 = ttk.Label(top, text="", anchor=tk.CENTER)
+        self.text1.grid(row=0, column=0, sticky="nesw")
         self.progressbar = ttk.Progressbar(top, length=WIDTH, maximum=100)
-        self.progressbar.grid(row=0, column=0, sticky="nesw")
+        self.progressbar.grid(row=1, column=0, sticky="nesw")
+        self.text2 = ttk.Label(top, text="", anchor=tk.CENTER)
+        self.text2.grid(row=2, column=0, sticky="nesw")
 
         top.protocol("WM_DELETE_WINDOW", lambda: None)
 
-        top.geometry("+%d+%d" % (master.winfo_rootx(), master.winfo_rooty()))
+        root_x = int(master.parent.geometry().split("+", 1)[-1].split("+")[0])
+        top.geometry(f"+%d+%d" % (root_x, master.winfo_rooty()))
 
         top.transient(self.master)
         top.focus_force()
         top.wait_visibility()
         top.grab_set()
         if platform.system() == "Windows":
-            master.wm_attributes("-disabled", True)
+            master.parent.wm_attributes("-disabled", True)
 
     def start(self, *args):
         def _progress(count, total, message=''):
@@ -337,7 +342,8 @@ class DownloadFFmpegDialogue:
 
             percents = int(100.0 * count / float(total))
             self.progressbar["value"] = percents
-            self.top.title(f"{message}")
+            self.text1["text"] = f"{message}:"
+            self.text2["text"] = f"{percents}%"
             self.top.update_idletasks()
 
         try:
@@ -371,7 +377,7 @@ class DownloadFFmpegDialogue:
 
     def destroy(self, *args):
         if platform.system() == "Windows":
-            self.master.wm_attributes("-disabled", False)
+            self.master.parent.wm_attributes("-disabled", False)
         self.top.grab_release()
         self.top.destroy()
 
