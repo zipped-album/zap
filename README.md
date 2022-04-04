@@ -99,9 +99,7 @@ brew install ffmpeg@4
    python3 -m pip install --user pipx
    python3 -m pipx ensurepath
    ```
-   
-   or (if you installed PyMuPDF
-   
+      
 6. **Install ZAP**
 
    ```
