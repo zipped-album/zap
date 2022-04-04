@@ -90,7 +90,7 @@ brew install ffmpeg@4
 
    If not, install them. For instance, on Debian-based distros:
    ```
-   sudo apt intall python3-fitz python3-pil.imagetk
+   sudo apt install python3-fitz python3-pil.imagetk
    ```
 
 5. **Install pipx**
