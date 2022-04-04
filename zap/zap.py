@@ -314,7 +314,7 @@ class DownloadFFmpegDialogue:
     def __init__(self, master):
         self.master = master
         top = self.top = tk.Toplevel(master)
-        top.title("Download")
+        top.title("Downloading...")
         top.resizable(False, False)
 
         self.text1 = ttk.Label(top, text="", anchor=tk.CENTER)
@@ -342,8 +342,8 @@ class DownloadFFmpegDialogue:
 
             percents = int(100.0 * count / float(total))
             self.progressbar["value"] = percents
-            self.text1["text"] = f"{message}:"
-            self.text2["text"] = f"{percents}%"
+            self.text1["text"] = message
+            self.text2["text"] = f"{percents} %"
             self.top.update_idletasks()
 
         try:

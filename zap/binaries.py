@@ -97,7 +97,7 @@ def download_ffmpeg(progress=None):
     url = f"{url_base}/{filename}"
 
     if progress:
-        progress(0, 100, f"Downloading {filename}")
+        progress(0, 100, filename)
 
     r = Request(url, headers={"Accept-Encoding": "gzip; deflate"})
     u = urlopen(r)
@@ -115,17 +115,16 @@ def download_ffmpeg(progress=None):
                 file_size_dl += len(buffer)
                 f.write(buffer)
                 if progress:
-                    progress(file_size_dl, file_size,
-                             f"Downloading {filename}")
+                    progress(file_size_dl, file_size, filename)
         except Exception:
             if progress:
-                progress(0, 100, f"Downloading {filename}")
+                progress(0, 100, filename)
             chunk = u.read()
             while chunk:
                 f.write(chunk)
                 chunk = u.read()
         if progress:
-            progress(100, 100, f"Downloading {filename}")
+            progress(100, 100, filename)
 
         path = os.path.abspath(os.path.join(os.path.split(__file__)[0], "lib"))
         if not os.path.isdir(path):
