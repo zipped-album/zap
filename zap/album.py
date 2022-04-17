@@ -237,8 +237,8 @@ class ZippedAlbum:
         else:
             tracklist = []
             if "tracklist" in self.playlist:
-                tracks = [self.tracks[x["location"]] \
-                          for x in self.playlist["tracklist"]]
+                #tracks = [self.tracks[x["location"]] \
+                          #for x in self.playlist["tracklist"]]
                 for c,x in enumerate(self.playlist["tracklist"]):
                     filename = x["location"]
                     track = self.tracks[filename]
@@ -257,6 +257,7 @@ class ZippedAlbum:
                     except:
                         name = filename
                     track["display"] = [str(c + 1), name, duration]
+                    track["filename"] = filename
                     tracklist.append(track)
             else:
                 for nr, (filename, track) in enumerate(self.tracks.items()):
