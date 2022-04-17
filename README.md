@@ -90,7 +90,7 @@ brew install ffmpeg@4
 
    If not, install them. For instance, on Debian-based distros:
    ```
-   sudo apt intall python3-fitz python3-pil.imagetk
+   sudo apt install python3-fitz python3-pil.imagetk
    ```
 
 5. **Install pipx**
@@ -99,9 +99,7 @@ brew install ffmpeg@4
    python3 -m pip install --user pipx
    python3 -m pipx ensurepath
    ```
-   
-   or (if you installed PyMuPDF
-   
+      
 6. **Install ZAP**
 
    ```
