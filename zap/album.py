@@ -184,18 +184,19 @@ class ZippedAlbum:
                 self._artist = self.playlist["creator"]
             else:
                 try:
-                    artist = ["; ".join(v["tags"]["albumartist"]) \
-                              for k,v in self.tracks.items()]
+                    artists = ["; ".join(v["tags"]["albumartist"]) \
+                               for k,v in self.tracks.items()]
                 except:
-                    try:
-                        artist = ["; ".join(v["tags"]["artist"]) \
-                                  for k,v in self.tracks.items()]
-                    except:
-                        artist = ["Unknown Artist"]
-                if len(set(artist)) > 1:
+                    artists = []
+                    for k,v in self.tracks.items():
+                        try:
+                            artists.append("; ".join(v["tags"]["artist"]))
+                        except:
+                            artists.append("Unknown Artist")
+                if len(set(artists)) > 1:
                     self._artist = "Various Artists"
                 else:
-                    self._artist = artist[0]
+                    self._artist = artists[0]
             return self._artist
 
     @property
@@ -235,10 +236,17 @@ class ZippedAlbum:
         if hasattr(self, "_tracklist"):
             return self._tracklist
         else:
+            artists = []
+            for k,v in self.tracks.items():
+                try:
+                    artists.append("; ".join(v["tags"]["artist"]))
+                except:
+                    artists.append("Unknown Artist")
             tracklist = []
             if "tracklist" in self.playlist:
                 #tracks = [self.tracks[x["location"]] \
                           #for x in self.playlist["tracklist"]]
+
                 for c,x in enumerate(self.playlist["tracklist"]):
                     filename = x["location"]
                     track = self.tracks[filename]
@@ -247,15 +255,23 @@ class ZippedAlbum:
                     d = str(d - datetime.timedelta(
                         microseconds=d.microseconds))
                     duration = d.lstrip("0:")
-                    try:
-                        if self.artist == "Various Artists":
+                    if len(set(artists)) > 1:
+                        try:
                             artist = "; ".join(track["tags"]["artist"])
+                        except:
+                            artist = "Unknown Artist"
+                        try:
                             title = "; ".join(track["tags"]["title"])
-                            name = f"{artist} - {title}"
-                        else:
+                        except:
+                            title = "Unknown Title"
+                        name = f"{artist} - {title}"
+                        if name == "Unknown Artist - Unknown Title":
+                            name = os.path.splitext(filename)[0]
+                    else:
+                        try:
                             name = "; ".join(track["tags"]["title"])
-                    except:
-                        name = filename
+                        except:
+                            name = os.path.splitext(filename)[0]
                     track["display"] = [str(c + 1), name, duration]
                     track["filename"] = filename
                     tracklist.append(track)
@@ -272,22 +288,30 @@ class ZippedAlbum:
                         if int(d[1]) < 9:
                             d[1] = d[1][1:]
                         duration = ":".join(d[1:])
-                    try:
-                        if self.artist == "Various Artists":
+                    if len(set(artists)) > 1:
+                        try:
                             artist = "; ".join(track["tags"]["artist"])
+                        except:
+                            artist = "Unknown Artist"
+                        try:
                             title = "; ".join(track["tags"]["title"])
-                            name = f"{artist} - {title}"
-                        else:
+                        except:
+                            title = "Unknown Title"
+                        name = f"{artist} - {title}"
+                        if name == "Unknown Artist - Unknown Title":
+                            name = filename
+                    else:
+                        try:
                             name = "; ".join(track["tags"]["title"])
-                    except:
-                        name = filename
+                        except:
+                            name = os.path.splitext(filename)[0]
                     try:
                         numbers = track["tags"]["tracknumber"]
                     except:
-                        numbers = [str(nr)]
+                        numbers = [str(nr + 1)]
                     for number in numbers:
                         track["display"] = [number, name, duration]
-                        track["filename"] = filename
+                        track["filename"] = os.path.splitext(filename)[0]
                         tracklist.append(track)
                 tracklist = tuple(sorted(tracklist,
                                          key=lambda x: int(x["display"][0])))
