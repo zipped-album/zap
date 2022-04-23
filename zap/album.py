@@ -22,6 +22,9 @@ FILETYPES = {"tracks": [".flac", ".opus"],
 SORT_IMAGES = True
 STRICT_SLIDES = True  # True: show first booklet OR images OR default image
                       # False: show merged booklets AND images
+ALT_ENCODINGS = True  # True: try alternative encodings of playlist filenames to
+                      #       match wrongly encoded filenames in ZIP
+                      # False: assume correct encoding of filenames in ZIP
 
 def _get_content(files):
     content = {"tracks": [],
@@ -61,21 +64,23 @@ def _create_booklet_page(args):
         factor = 2160 / x
     else:
         factor = 2160 / y
-    pix = page.getPixmap(matrix=fitz.Matrix(factor, factor))
-    pix.pillowWrite(args[2], format="JPEG", optimize=True)
+    pix = page.get_pixmap(matrix=fitz.Matrix(factor, factor))
+    pix.pil_save(args[2], format="JPEG", optimize=True)
     pdf.close()
 
 
 class ZippedAlbum:
     """A class representing a Zipped Album."""
 
-    def __init__(self, filename):
+    def __init__(self, filename, exact=False):
         """Create a ZippedAlbum object.
 
         Parameters
         ----------
         filename : str
             the path to the Zipped Album file.
+        exact : bool
+            no image sorting, no strict slides, no trying alternative encodings
 
         """
 
@@ -87,6 +92,14 @@ class ZippedAlbum:
         self._content = _get_content(sorted(self._archive.namelist()))
 
         assert self._content["tracks"]
+
+        if exact:
+            global SORT_IMAGES
+            global STRICT_SLIDES
+            global ALT_ENCODINGS
+            SORT_IMAGES = False
+            STRICT_SLIDES = False
+            ALT_ENCODINGS = False
 
     def __del__(self):
         if hasattr(self, "_archive"):
@@ -244,12 +257,26 @@ class ZippedAlbum:
                     artists.append("Unknown Artist")
             tracklist = []
             if "tracklist" in self.playlist:
-                #tracks = [self.tracks[x["location"]] \
-                          #for x in self.playlist["tracklist"]]
-
                 for c,x in enumerate(self.playlist["tracklist"]):
                     filename = x["location"]
-                    track = self.tracks[filename]
+                    try:
+                        track = self.tracks[filename]
+                    except:
+                        if ALT_ENCODINGS:
+                            try:
+                                filename = filename.encode(
+                                    "cp1252").decode("cp437")
+                                track = self.tracks[filename]
+                            except:
+                                try:
+                                    filename = filename.encode(
+                                        "utf-8").decode("cp437")
+                                    track = self.tracks[filename]
+                                except:
+                                    continue
+                        else:
+                            continue
+
                     d = datetime.timedelta(
                         seconds=track["streaminfo"]["duration"])
                     d = str(d - datetime.timedelta(
@@ -299,7 +326,7 @@ class ZippedAlbum:
                             title = "Unknown Title"
                         name = f"{artist} - {title}"
                         if name == "Unknown Artist - Unknown Title":
-                            name = filename
+                            name = os.path.splitext(filename)[0]
                     else:
                         try:
                             name = "; ".join(track["tags"]["title"])
@@ -311,7 +338,7 @@ class ZippedAlbum:
                         numbers = [str(nr + 1)]
                     for number in numbers:
                         track["display"] = [number, name, duration]
-                        track["filename"] = os.path.splitext(filename)[0]
+                        track["filename"] = filename
                         tracklist.append(track)
                 tracklist = tuple(sorted(tracklist,
                                          key=lambda x: int(x["display"][0])))
@@ -371,7 +398,10 @@ class ZippedAlbum:
 
         """
 
-        return self._archive.open(self.tracklist[nr]["filename"])
+        try:
+            return self._archive.open(self.tracklist[nr]["filename"])
+        except:
+            pass
 
     def get_slide(self, nr):
         """Get a slide from the booklet.
