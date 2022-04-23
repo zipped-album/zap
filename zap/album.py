@@ -90,16 +90,15 @@ class ZippedAlbum:
         self._archive = zipfile.ZipFile(filename)
         self._tmpdir = tempfile.TemporaryDirectory()
         self._content = _get_content(sorted(self._archive.namelist()))
-
+        self._sort_images = SORT_IMAGES
+        self._strict_slides = STRICT_SLIDES
+        self._alt_encodings = ALT_ENCODINGS
         assert self._content["tracks"]
 
         if exact:
-            global SORT_IMAGES
-            global STRICT_SLIDES
-            global ALT_ENCODINGS
-            SORT_IMAGES = False
-            STRICT_SLIDES = False
-            ALT_ENCODINGS = False
+            self._sort_images = False
+            self._strict_slides = False
+            self._alt_encodings = False
 
     def __del__(self):
         if hasattr(self, "_archive"):
@@ -262,21 +261,21 @@ class ZippedAlbum:
                     try:
                         track = self.tracks[filename]
                     except:
-                        if ALT_ENCODINGS:
-                            try:
-                                filename = filename.encode(
-                                    "cp1252").decode("cp437")
-                                track = self.tracks[filename]
-                            except:
+                        if self._alt_encodings:
+                            continue_ = True
+                            for encoding in ("utf-8", "cp1252"):
                                 try:
                                     filename = filename.encode(
-                                        "utf-8").decode("cp437")
+                                        encoding).decode("cp437")
                                     track = self.tracks[filename]
+                                    continue_ = False
+                                    break
                                 except:
-                                    continue
+                                    pass
+                            if continue_:
+                                continue
                         else:
                             continue
-
                     d = datetime.timedelta(
                         seconds=track["streaminfo"]["duration"])
                     d = str(d - datetime.timedelta(
@@ -374,7 +373,7 @@ class ZippedAlbum:
             else:
                 booklet_pages = 0
             images = self._content["images"]
-            if STRICT_SLIDES:
+            if self._strict_slides:
                 if booklet_pages > 0:
                     self._nr_of_slides = booklet_pages
                 else:
@@ -427,7 +426,7 @@ class ZippedAlbum:
             return os.path.abspath(os.path.join(
             os.path.split(__file__)[0], "unknown_album.png"))
 
-        if STRICT_SLIDES:
+        if self._strict_slides:
             if self._content["booklets"]:
                 booklet_pages = self.nr_of_slides
             else:
@@ -442,7 +441,7 @@ class ZippedAlbum:
                 return None
         else:
             nr -= booklet_pages
-            if SORT_IMAGES:
+            if self._sort_images:
                 images = _sort_images(self._content["images"])
             else:
                 images = self._content["images"]
@@ -464,7 +463,8 @@ class ZippedAlbum:
                 booklet = fitz.open(
                     stream=self._archive.read(self._content["booklets"][0]),
                     filetype="pdf")
-                if not STRICT_SLIDES and len(self._content["booklets"]) > 1:
+                if not self._strict_slides and \
+                        len(self._content["booklets"]) > 1:
                     for other in self._content["booklets"][1:]:
                         doc = fitz.open(stream=self._archive.read(other),
                                         filetype="pdf")

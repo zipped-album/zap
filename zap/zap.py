@@ -388,6 +388,8 @@ class MainApplication(ttk.Frame):
         self.parent = parent
         self.style = ttk.Style()
         self.size = [WIDTH, HEIGHT]
+        self.repeat_album = tk.BooleanVar()
+        self.repeat_album.set(False)
         self.create_menu()
         self.create_widgets()
         self.remove_arrows()
@@ -396,7 +398,6 @@ class MainApplication(ttk.Frame):
         self.rowconfigure(0, weight=1)
         self.always_on_top = False
         self.fullscreen = False
-        self.repeat_album = False
         #self.create_bindings()
         self.loaded_album = None
         self.current_image = None
@@ -453,13 +454,17 @@ class MainApplication(ttk.Frame):
                 sec_str = str(seconds).rjust(2, '0')
                 self.playhead_label["text"] = f"{min_str}:{sec_str}"
 
-    def _open_album(self, e=None):
+    def _open_album(self, *args, **kwargs):
+        if "exact" in kwargs:
+            exact = True
+        else:
+            exact = False
         allowed_extensions = "*.zip *.zlbm"
         filetypes = [("Zipped Album files", allowed_extensions),
                      ("All files", "*.*")]
         filename = filedialog.askopenfilename(filetypes=filetypes)
         if filename:
-            self.load_album(filename)
+            self.load_album(filename, exact=exact)
             self.parent.focus_force()
 
     def create_menu(self):
@@ -479,14 +484,15 @@ class MainApplication(ttk.Frame):
         self.file_menu = tk.Menu(self.menubar, tearoff=False)
         self.menubar.add_cascade(menu=self.file_menu, label="File")
 
-        self.file_menu.add_command(label="Open",
+        self.file_menu.add_command(label="Open...",
                                    command=self._open_album,
                                    accelerator=f"{modifier}-O")
-
+        self.file_menu.add_command(label="Open exact...",
+                                   command=lambda: self._open_album(exact=True))
         self.options_menu = tk.Menu(self.menubar, tearoff=False)
         self.menubar.add_cascade(menu=self.options_menu, label="Options")
         self.options_menu.add_checkbutton(label="Repeat",
-                                          command=self.toggle_repeat_album)
+                                          variable=self.repeat_album)
         self.view_menu = tk.Menu(self.menubar, tearoff=False)
         self.menubar.add_cascade(menu=self.view_menu, label=view_menu_label)
         self.view_presets_menu = tk.Menu(self.view_menu, tearoff=False)
@@ -964,7 +970,7 @@ class MainApplication(ttk.Frame):
         self.canvas_arrow_right = False
         self.canvas_arrow_left = False
 
-    def load_album(self, path):
+    def load_album(self, path, exact=False):
         # Clear current state
         self.parent.title("ZAP")
         self.hide_image()
@@ -982,7 +988,7 @@ class MainApplication(ttk.Frame):
 
         # Load new album
         try:
-            self.loaded_album = ZippedAlbum(path)
+            self.loaded_album = ZippedAlbum(path, exact=exact)
         except AssertionError:
             self.artist["text"] = "No Album"
             return
@@ -1131,7 +1137,7 @@ class MainApplication(ttk.Frame):
                 self.player.clear()
                 self.player.clear_on_queue = True
                 self.player.seek(0.0)
-                if self.repeat_album:
+                if self.repeat_album.get():
                     self.play()
 
         self.player.eos_callback = next
@@ -1381,12 +1387,6 @@ class MainApplication(ttk.Frame):
         self.show_image(current_image)
         self.truncate_titles()
 
-    def toggle_repeat_album(self):
-        if self.repeat_album:
-            self.repeat_album = False
-        else:
-            self.repeat_album = True
-
     def set_title(self):
         title = "ZAP"
         if self.loaded_album is not None:
@@ -1466,7 +1466,11 @@ def run():
             sys.exit()
 
     try:
-        app.load_album(os.path.abspath(sys.argv[1]))
+        if "--exact" in sys.argv:
+            exact = True
+        else:
+            exact = False
+        app.load_album(os.path.abspath(sys.argv[-1]), exact=exact)
     except:
         pass
 
