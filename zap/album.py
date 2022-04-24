@@ -262,8 +262,23 @@ class ZippedAlbum:
                         track = self.tracks[filename]
                     except:
                         if self._alt_encodings:
+                            import pkgutil
+                            import encodings
+                            false_positives = set(["aliases"])
+                            encodings = set(
+                                name for imp, name, ispkg in \
+                                pkgutil.iter_modules(
+                                    encodings.__path__) if not ispkg)
+                            encodings.difference_update(false_positives)
+                            encodings = list(encodings)
+                            encodings.insert(0, encodings.pop(encodings.index(
+                                "latin_1")))
+                            encodings.insert(0, encodings.pop(encodings.index(
+                                "cp1252")))
+                            encodings.insert(0, encodings.pop(encodings.index(
+                                "utf_8")))
                             continue_ = True
-                            for encoding in ("utf-8", "cp1252"):
+                            for encoding in encodings: #("utf-8", "cp1252"):
                                 try:
                                     filename = filename.encode(
                                         encoding).decode("cp437")
