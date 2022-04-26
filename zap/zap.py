@@ -459,10 +459,15 @@ class MainApplication(ttk.Frame):
             exact = True
         else:
             exact = False
+        if self.loaded_album is not None:
+            initialdir = os.path.split(self.loaded_album.filename)[0]
+        else:
+            initialdir = os.getcwd()
         allowed_extensions = "*.zip *.zlbm"
         filetypes = [("Zipped Album files", allowed_extensions),
                      ("All files", "*.*")]
-        filename = filedialog.askopenfilename(filetypes=filetypes)
+        filename = filedialog.askopenfilename(initialdir=initialdir,
+                                              filetypes=filetypes)
         if filename:
             self.load_album(filename, exact=exact)
             self.parent.focus_force()
@@ -989,8 +994,12 @@ class MainApplication(ttk.Frame):
         # Load new album
         try:
             self.loaded_album = ZippedAlbum(path, exact=exact)
-        except AssertionError:
+        except:
             self.artist["text"] = "No Album"
+            file = os.path.split(path)[-1]
+            messagebox.showerror(
+                title="Error opening album",
+                message=f'"{file}" does not seem to be a valid Zipped Album!')
             return
 
         self.loaded_album.prepare_booklet_pages(self.wait_cover_image)
@@ -1480,7 +1489,15 @@ def run():
             exact = True
         else:
             exact = False
-        app.load_album(os.path.abspath(sys.argv[-1]), exact=exact)
+        if os.path.isdir(sys.argv[-1]):
+            os.chdir(os.path.abspath(sys.argv[-1]))
+        if os.path.splitext(sys.argv[-1])[-1] in (".zlbm", ".zip"):
+            if os.path.isfile(sys.argv[-1]):
+                app.load_album(os.path.abspath(sys.argv[-1]), exact=exact)
+            else:
+                messagebox.showerror(
+                title="Error opening album",
+                message=f'The file "{sys.argv[-1]}" does not exist!')
     except:
         pass
 
