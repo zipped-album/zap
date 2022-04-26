@@ -1,5 +1,6 @@
 import os
 import io
+import re
 import glob
 import urllib
 import zipfile
@@ -43,12 +44,11 @@ def _sort_images(images):
     back = []
     other = []
     for x in images:
-        if os.path.splitext(x)[0].endswith("folder") or \
-                os.path.splitext(x)[0].endswith("cover") or \
-                os.path.splitext(x)[0].endswith("front"):
-            front.append(x)
-        elif os.path.splitext(x)[0].endswith("back"):
+        parts = re.split(' |\_|\-|\.', os.path.splitext(x)[0])
+        if "back" in parts:
             back.append(x)
+        elif any(x in parts for x in ("front", "cover", "folder")):
+            front.append(x)
         else:
             other.append(x)
     return tuple(front + other + back)

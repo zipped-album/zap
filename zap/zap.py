@@ -1332,7 +1332,17 @@ class MainApplication(ttk.Frame):
             #    self.parent.wm_attributes("zoomed", True)
             #self.fit_to_slides()
             #return
-            max_width, max_height = self.parent.maxsize()
+            if platform.system() == "Windows":
+                self.parent.attributes("-alpha", 0)
+                self.parent.state('zoomed')
+                self.parent.update()
+                max_width  = self.parent.winfo_width()
+                max_height = self.parent.winfo_height()
+                self.parent.state('normal')
+                self.parent.update()
+                self.parent.attributes("-alpha", 1)
+            else:
+                max_width, max_height = self.parent.maxsize()
             if max_width > max_height:
                 width = max_height + (WIDTH - HEIGHT)
                 height = max_height
@@ -1433,7 +1443,7 @@ def run():
                      tk.PhotoImage(file=os.path.abspath(os.path.join(
                 os.path.split(__file__)[0], "zipped_album_icon.png"))))
     app.pack(side="top", fill="both", expand=True)
-    root.geometry(f"{WIDTH}x{HEIGHT}")
+    root.geometry(f"{WIDTH}x{HEIGHT}+0+0")
     root.update()
     root.deiconify()
     root.minsize(WIDTH-HEIGHT, 0)
