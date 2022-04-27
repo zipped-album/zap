@@ -27,7 +27,7 @@ ZAP will attempt to download a local copy the first time it is started.
 
 1. **Make sure you have Python 3 with Tkinter support installed**
    
-   If not, install it. For instance with this installer: https://www.python.org/ftp/python/3.10.3/python-3.10.3-amd64.exe
+   If not, install it. For instance with this installer: https://www.python.org/ftp/python/3.10.4/python-3.10.4-amd64.exe
    
 2. **Install pipx**
    
@@ -46,7 +46,7 @@ ZAP will attempt to download a local copy the first time it is started.
 
 1. **Make sure you have Python 3 with Tkinter support installed**
    
-   If not, install it. For instance with this installer: https://www.python.org/ftp/python/3.10.3/python-3.10.3-macos11.pkg
+   If not, install it. For instance with this installer: https://www.python.org/ftp/python/3.10.4/python-3.10.4-macos11.pkg
    
 2. **Install pipx**
    
@@ -110,13 +110,19 @@ brew install ffmpeg@4
 
 After successful installation, ZAP can be started with either
 ```
-zap [ZIPPED_ALBUM]
+zap [--exact] [ZIPPED_ALBUM]
 ````
 or 
 ```
-zipped-album-player [ZIPPED_ALBUM]
+zipped-album-player [--exact] [ZIPPED_ALBUM]
 ```
 where `ZIPPED_ALBUM` is an optional path to a Zipped Album file.
+If `--exact` is given, ZAP will show all booklets and images in
+alphabetic order and will not attempt to try alternative encodings
+of wrongly encoded filenames in the ZIP file to match filenames in
+a playlist.
+If `ZIPPED_ALBUM` is a directory, ZAP will set the initial directory
+of the "Open..." dialogue to that.
 
 ### Keyboard navigation
 
