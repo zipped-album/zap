@@ -117,10 +117,10 @@ or
 zipped-album-player [--exact] [ZIPPED_ALBUM]
 ```
 where `ZIPPED_ALBUM` is an optional path to a Zipped Album file.
-If `--exact` is given, ZAP will show all booklets and images in
-alphabetic order and will not attempt to try alternative encodings
-of wrongly encoded filenames in the ZIP file to match filenames in
-a playlist.
+If `--exact` is given, ZAP will show all booklets and images in alphabetic
+order, will not attempt to try alternative encodings of of wrongly encoded
+filenames in the ZIP file to match filenames in a playlist, and will not apply
+any fixes to track numbering.
 If `ZIPPED_ALBUM` is a directory, ZAP will set the initial directory
 of the "Open..." dialogue to that.
 

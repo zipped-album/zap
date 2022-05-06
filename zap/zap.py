@@ -705,7 +705,8 @@ class MainApplication(ttk.Frame):
         slider_frame.grid(column=2, row=0, sticky="ew", padx=PADDING/2)
         self.volume_slider = ttk.Progressbar(slider_frame,
                                              orient="horizontal",
-                                             mode='determinate', length=int(50 * SCALING),
+                                             mode='determinate',
+                                             length=int(50 * SCALING),
                                              maximum=100, value=100)
         self.volume_slider.place(relheight=1.0, relwidth=1.0)
         self.volume_label = ttk.Label(frame_bottom, anchor="center",
