@@ -1034,7 +1034,7 @@ class MainApplication(ttk.Frame):
         else:
             width = WIDTH
             height = HEIGHT
-        c1_width = width - height -2 - c0_width - c2_width  # 2=2x1 frame borders
+        c1_width = width - height - 2 - c0_width - c2_width  # 2=2x1 frame borders
         self.tree.column('Title', width=c1_width)
         for c, track in enumerate(self.loaded_album.tracklist):
             if c % 2 == 1:

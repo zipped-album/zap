@@ -21,11 +21,15 @@ FILETYPES = {"tracks": [".flac", ".opus"],
              "images": [".jpeg", ".jpg", ".png"],
              "playlists": [".xspf"]}
 SORT_IMAGES = True
-STRICT_SLIDES = True  # True: show first booklet OR images OR default image
-                      # False: show merged booklets AND images
-ALT_ENCODINGS = True  # True: try alternative encodings of playlist filenames to
-                      #       match wrongly encoded filenames in ZIP
-                      # False: assume correct encoding of filenames in ZIP
+STRICT_SLIDES = True    # True: show first booklet OR images OR default image
+                        # False: show merged booklets AND images
+ALT_ENCODINGS = True    # True: try alternative encodings of playlist filenames
+                        #       to match wrongly encoded filenames in ZIP
+                        # False: assume correct encoding of filenames in ZIP
+FIX_TRACKNUMBERS = True # True: skip leading zeros in tracknumber tag and
+                        #       assign succesive numbers if no tracknumber tag
+                        # False: leave leading zeros in tracknumbers and omit
+                        #        tracks without tracknumber tag
 
 def _get_content(files):
     content = {"tracks": [],
@@ -93,12 +97,14 @@ class ZippedAlbum:
         self._sort_images = SORT_IMAGES
         self._strict_slides = STRICT_SLIDES
         self._alt_encodings = ALT_ENCODINGS
+        self._fix_tracknumbers = FIX_TRACKNUMBERS
         assert self._content["tracks"]
 
         if exact:
             self._sort_images = False
             self._strict_slides = False
             self._alt_encodings = False
+            self._fix_tracknumbers = False
 
     def __del__(self):
         if hasattr(self, "_archive"):
@@ -317,6 +323,7 @@ class ZippedAlbum:
                     track["filename"] = filename
                     tracklist.append(track)
             else:
+                used_numbers = []
                 for nr, (filename, track) in enumerate(self.tracks.items()):
                     d = datetime.timedelta(
                         seconds=track["streaminfo"]["duration"])
@@ -326,7 +333,7 @@ class ZippedAlbum:
                     if int(d[0]) > 0:
                         duration = ":".join(d)
                     else:
-                        if int(d[1]) < 9:
+                        if int(d[1]) <= 9:
                             d[1] = d[1][1:]
                         duration = ":".join(d[1:])
                     if len(set(artists)) > 1:
@@ -348,9 +355,22 @@ class ZippedAlbum:
                             name = os.path.splitext(filename)[0]
                     try:
                         numbers = track["tags"]["tracknumber"]
+                        used_numbers.extend(numbers)
                     except:
-                        numbers = [str(nr + 1)]
+                        if self._fix_tracknumbers:
+                            for x in range(nr + 1):
+                                if not str(x + 1) in used_numbers:
+                                    numbers = [str(x + 1)]
+                                    used_numbers.append(str(x + 1))
+                                    break
+                        else:
+                            continue
                     for number in numbers:
+                        if self._fix_tracknumbers:
+                            try:
+                                number = str(int(number))
+                            except:
+                                pass
                         track["display"] = [number, name, duration]
                         track["filename"] = filename
                         tracklist.append(track)
