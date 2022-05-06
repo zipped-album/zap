@@ -1,2 +1,2 @@
 __author__ = "Florian Krause <florian.krause@fladd.de>"
-__version__ = "0.3.2"
+__version__ = "0.3.3"
