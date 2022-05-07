@@ -63,13 +63,20 @@ def _create_booklet_page(args):
     from PIL import Image
     pdf = fitz.open(args[0])
     page = pdf[args[1]]
-    x, y = page.CropBox[2:]
+    try:
+        x, y = page.cropbox[2:]
+    except:
+        x, y = page.CropBox[2:]
     if x > y:
         factor = 2160 / x
     else:
         factor = 2160 / y
-    pix = page.get_pixmap(matrix=fitz.Matrix(factor, factor))
-    pix.pil_save(args[2], format="JPEG", optimize=True)
+    try:
+        pix = page.get_pixmap(matrix=fitz.Matrix(factor, factor))
+        pix.pil_save(args[2], format="JPEG", optimize=True)
+    except:
+        pix = page.getPixmap(matrix=fitz.Matrix(factor, factor))
+        pix.pillowWrite(args[2], format="JPEG", optimize=True)
     pdf.close()
 
 
@@ -503,7 +510,10 @@ class ZippedAlbum:
                     for other in self._content["booklets"][1:]:
                         doc = fitz.open(stream=self._archive.read(other),
                                         filetype="pdf")
-                        booklet.insertPDF(doc)
+                        try:
+                            booklet.insert_pdf(doc)
+                        except:
+                            booklet.insertPDF(doc)
                         doc.close()
                 path = os.path.join(self._tmpdir.name, "booklet.pdf")
                 booklet.save(path)
