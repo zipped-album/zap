@@ -759,6 +759,8 @@ class MainApplication(ttk.Frame):
                     play_next = True
                 selected_track_id = self.selected_track_id + step
                 self.tree.selection_set([str(selected_track_id)])
+                self.tree.focus(str(selected_track_id))
+                self.tree.see(str(selected_track_id))
                 self.selected_track_id = selected_track_id
                 self.load_track()
                 #self.parent.update()
@@ -1045,6 +1047,8 @@ class MainApplication(ttk.Frame):
             self.tree.insert(parent='', index=c, iid=c, text='', tags=tags,
                              values=track["display"])
         self.tree.selection_set(["0"])
+        self.tree.focus("0")
+        self.tree.see("0")
         self.selected_track_id = 0
         self.truncate_titles()
 
@@ -1086,6 +1090,8 @@ class MainApplication(ttk.Frame):
                 tags = [x for x in tags if x != "normal"]
                 tags.append("bold")
                 self.tree.selection_set([str(track_id)])
+                self.tree.focus(str(track_id))
+                self.tree.see(str(track_id))
                 self.tree.item(str(track_id), tags=tags)
                 try:
                     self.player.queue(self.loaded_album.get_audio(track_id + 1))
@@ -1112,6 +1118,8 @@ class MainApplication(ttk.Frame):
                 tags = [x for x in tags if x != "normal"]
                 tags.append("bold")
                 self.tree.selection_set([str(track_id)])
+                self.tree.focus(str(track_id))
+                self.tree.see(str(track_id))
                 self.tree.item(str(track_id), tags=tags)
                 self.selected_track_id = track_id
                 self.playing_track_id = track_id
@@ -1141,6 +1149,8 @@ class MainApplication(ttk.Frame):
                 if self.playing_track_id is not None:
                     self.pause()
                 self.tree.selection_set(["0"])
+                self.tree.focus("0")
+                self.tree.see("0")
                 self.selected_track_id = 0
                 self.load_track()
                 self.set_title()
