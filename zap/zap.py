@@ -72,17 +72,19 @@ ABOUT_TEXT = """
 
  ┌──── Keyboard navigation ──────────────────────────────────────────────────┐
  │                                                                           │
- │  Play/Pause:                               Return           |      Space  │
- │  Select next track:                        Down             |      j      │
- │  Select previous track:                    Up               |      k      │
- │  Select first track:                       Home             |      gg     │
- │  Seek forward:                             Right            |      l      │
- │  Seek backward:                            Left             |      h      │
- │  Seek to beginning:                        Numpad 0         |      0      │
- │  Show next slide:                          Shift-Right      |      L      │
- │  Show previous slide:                      Shift-Left       |      H      │
- │  Increase volume:                          Shift-Right      |      K      │
- │  Decrease volume:                          Shift-Left       |      J      │
+ │  Play/Pause: ............................. Space ......... or ... Return  │
+ │  Select next track: ...................... Down .......... or ........ j  │
+ │  Select previous track: .................. Up ............ or ........ k  │
+ │  Select first track: ..................... Home .......... or ....... gg  │
+ │  Select last track: ...................... End ........... or ........ G  │
+ │  Seek forward: ........................... Right ......... or ........ l  │
+ │  Seek backward: .......................... Left .......... or ........ h  │
+ │  Seek to beginning: ...................... w ............. or ........ 0  │
+ │  Show next slide: ........................ Shift+Right ... or ........ L  │
+ │  Show previous slide: .................... Shift+Left .... or ........ H  │
+ │  Show first slide: ....................... W ............. or ........ )  │
+ │  Decrease volume: ........................ Shift+Down .... or ........ J  │
+ │  Increase volume: ........................ Shift+Up....... or ........ K  │
  │                                                                           │
  └───────────────────────────────────────────────────────────────────────────┘
 """.format(ver=__version__)
@@ -781,6 +783,14 @@ class MainApplication(ttk.Frame):
         self.parent.bind("<Home>", goto_first_track)
         self.parent.bind("<g><g>", goto_first_track)
 
+        def goto_last_track(e):
+            length = len(self.loaded_album.tracklist) - 1
+            if self.selected_track_id not in (None, length):
+                increment_track(length - self.selected_track_id)
+
+        self.parent.bind("<End>", goto_last_track)
+        self.parent.bind("<G>", goto_last_track)
+
         def increment_playhead(step):
             if self.loaded_album is not None:
                 if str(self.playpause_button["state"]) == "disabled":
@@ -804,6 +814,7 @@ class MainApplication(ttk.Frame):
                 self.player.seek(0.0)
 
         self.parent.bind("0", seek_to_beginning)
+        self.parent.bind("<w>", seek_to_beginning)
 
         def increment_volume(step):
             self.volume += step
@@ -837,6 +848,13 @@ class MainApplication(ttk.Frame):
         self.parent.bind(f"<Shift-Left>", lambda e: switch_image(-1))
         self.parent.bind(f"<H>", lambda e: switch_image(-1))
 
+        def switch_to_first_image(e):
+            if self.current_image not in (None, 0):
+                switch_image(-self.current_image)
+
+        self.parent.bind("<parenright>", switch_to_first_image)
+        self.parent.bind("<W>", switch_to_first_image)
+
         # Mouse (specific widgets)
         self.canvas.bind("<Enter>", lambda e: self.add_arrows())
         self.canvas.bind("<Leave>", lambda e: self.remove_arrows())
@@ -861,7 +879,8 @@ class MainApplication(ttk.Frame):
                 self.playhead = new_playhead
                 self.player.seek(pos)
 
-        self.playhead_slider.bind("<ButtonPress-1>", set_playhead_from_mouseclick)
+        self.playhead_slider.bind("<ButtonPress-1>",
+                                  set_playhead_from_mouseclick)
         self.playhead_slider.bind("<B1-Motion>", set_playhead_from_mouseclick)
 
         def set_volume_from_mouseclick(e):
