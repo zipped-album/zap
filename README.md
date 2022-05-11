@@ -127,17 +127,19 @@ of the "Open..." dialogue to that.
 ### Keyboard navigation
 
 ```
-Play/Pause:                               Return           |      Space
-Select next track:                        Down             |      j    
-Select previous track:                    Up               |      k    
-Select first track:                       Home             |      gg   
-Seek forward:                             Right            |      l    
-Seek backward:                            Left             |      h    
-Seek to beginning:                        Numpad 0         |      0    
-Show next slide:                          Shift-Right      |      L    
-Show previous slide:                      Shift-Left       |      H    
-Increase volume:                          Shift-Right      |      K    
-Decrease volume:                          Shift-Left       |      J    
+Play/Pause: ............................. Space ......... or ... Return
+Select next track: ...................... Down .......... or ........ j
+Select previous track: .................. Up ............ or ........ k
+Select first track: ..................... Home .......... or ....... gg
+Select last track: ...................... End ........... or ........ G
+Seek forward: ........................... Right ......... or ........ l
+Seek backward: .......................... Left .......... or ........ h
+Seek to beginning: ...................... w ............. or ........ 0
+Show next slide: ........................ Shift+Right ... or ........ L
+Show previous slide: .................... Shift+Left .... or ........ H
+Show first slide: ....................... W ............. or ........ )
+Decrease volume: ........................ Shift+Down .... or ........ J
+Increase volume: ........................ Shift+Up....... or ........ K
 ```
 
 ## FAQ
