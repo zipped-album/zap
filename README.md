@@ -9,6 +9,7 @@
 * MacOS, Windows and Linux support
 * Digital booklet slideshow
 * Keyboard navigation (with Vi-like alternatives)
+* View presets
 * Fullscreen mode
 
 ## Installation
