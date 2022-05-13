@@ -33,7 +33,7 @@ except ModuleNotFoundError:
 from PIL import ImageTk, Image
 
 from .__meta__ import __author__, __version__
-from .album import ZippedAlbum
+from .album import ZippedAlbum, create_zipped_album
 from .binaries import has_ffmpeg, download_ffmpeg, get_platform
 
 
@@ -474,6 +474,20 @@ class MainApplication(ttk.Frame):
             self.load_album(filename, exact=exact)
             self.parent.focus_force()
 
+    def _create_album(self, *args, **kwargs):
+        if self.loaded_album is not None:
+            initialdir = os.path.split(self.loaded_album.filename)[0]
+        else:
+            initialdir = os.getcwd()
+        directory = filedialog.askdirectory(initialdir=initialdir)
+        if directory:
+            try:
+                self.make_album(directory)
+            except AssertionError:
+                print("Not a Zipped Album")
+            except:
+                print("Unknown error")
+
     def create_menu(self):
         self.menubar = tk.Menu(self.parent)
         if platform.system() == "Darwin":
@@ -496,6 +510,8 @@ class MainApplication(ttk.Frame):
                                    accelerator=f"{modifier}-O")
         self.file_menu.add_command(label="Open exact...",
                                    command=lambda: self._open_album(exact=True))
+        self.file_menu.add_command(label="Create...",
+                                   command=self._create_album)
         self.options_menu = tk.Menu(self.menubar, tearoff=False)
         self.menubar.add_cascade(menu=self.options_menu, label="Options")
         self.options_menu.add_checkbutton(label="Repeat",
@@ -1014,9 +1030,9 @@ class MainApplication(ttk.Frame):
         self.parent.update()
 
         # Load new album
-        try:
+        if True:
             self.loaded_album = ZippedAlbum(path, exact=exact)
-        except:
+        else:
             self.artist["text"] = "No Album"
             file = os.path.split(path)[-1]
             messagebox.showerror(
@@ -1188,6 +1204,37 @@ class MainApplication(ttk.Frame):
         self.truncate_titles()
         self.set_title()
         self.create_menu()
+
+    def make_album(self, path, exact=False):
+        # Clear current state
+        self.parent.title("ZAP")
+        self.hide_image()
+        self.show_image(-1)
+        self.loaded_album = None
+        if self.playing_track_id is not None:
+            self.pause()
+        for i in self.tree.get_children():
+            self.tree.delete(i)
+        self.remove_arrows()
+        self.title["text"] = ""
+        self.artist["text"] = "Creating Album..."
+        self.info["text"] = ""
+        self.parent.update()
+
+        # Make new album
+        filename = None
+        try:
+            filename = create_zipped_album(path)
+        except:
+            self.artist["text"] = "No Album"
+            dir_ = os.path.split(path)[-1]
+            messagebox.showerror(
+                title="Error creating album",
+                message=f'"{dir_}" does not seem to be in a format to create '
+                'a Zipped Album from!')
+            return
+        if filename is not None:
+            self.load_album(filename, exact=exact)
 
     def truncate_titles(self, event=None):
         if self.loaded_album is None:
@@ -1519,8 +1566,15 @@ def run():
             exact = True
         else:
             exact = False
+        if "--create" in sys.argv:
+            create = True
+        else:
+            create = False
         if os.path.isdir(sys.argv[-1]):
-            os.chdir(os.path.abspath(sys.argv[-1]))
+            if create:
+                app.make_album(os.path.abspath(sys.argv[-1]), exact=exact)
+            else:
+                os.chdir(os.path.abspath(sys.argv[-1]))
         if os.path.splitext(sys.argv[-1])[-1] in (".zlbm", ".zip"):
             if os.path.isfile(sys.argv[-1]):
                 app.load_album(os.path.abspath(sys.argv[-1]), exact=exact)

@@ -80,6 +80,44 @@ def _create_booklet_page(args):
     pdf.close()
 
 
+def create_zipped_album(directory, filename=None):
+    """Create a Zipped Album from a directory.
+
+    Parameters
+    ----------
+    directory : str
+        the path to the directory to create the Zipped Album from
+    filename : str, optional
+        the path to the file to save the Zipped Album to
+        (if none is given, save as "<directory>.zlbm")
+
+    Returns
+    -------
+    filename : str
+        the path to the created Zipped Album file
+
+    """
+
+    if filename is None:
+        filename = directory + ".zlbm"
+
+    idx = 1
+    orig_filename = filename
+    while os.path.isfile(filename):
+        name, ext = os.path.splitext(orig_filename)
+        filename = f"{name} ({idx}){ext}"
+        idx += 1
+
+    assert os.path.isdir(directory)
+    content = _get_content(os.listdir(directory))
+    assert content["tracks"]
+    with zipfile.ZipFile(filename, 'w') as archive:
+        for file in (x for l in content.values() for x in l):
+            archive.write(os.path.join(directory, file), arcname=file)
+
+    return filename
+
+
 class ZippedAlbum:
     """A class representing a Zipped Album."""
 

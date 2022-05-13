@@ -111,19 +111,29 @@ brew install ffmpeg@4
 
 After successful installation, ZAP can be started with either
 ```
-zap [--exact] [ZIPPED_ALBUM]
+zap [--exact] [--create] [PATH]
 ````
 or 
 ```
-zipped-album-player [--exact] [ZIPPED_ALBUM]
+zipped-album-player [--exact] [--create] [PATH]
 ```
-where `ZIPPED_ALBUM` is an optional path to a Zipped Album file.
-If `--exact` is given, ZAP will show all booklets and images in alphabetic
-order, will not attempt to try alternative encodings of wrongly encoded
-filenames in the ZIP file to match filenames in a playlist, and will not apply
-any fixes to track numbering.
-If `ZIPPED_ALBUM` is a directory, ZAP will set the initial directory
-of the "Open..." dialogue to that.
+where the optional `PATH` is a Zipped Album file or a directory, and `--exact`
+and `--create` are options.
+If `PATH` is a Zipped Album file and no option is given, ZAP will attempt to
+open it.
+If PATH is a Zipped Album file and `--exact` is given, ZAP will attempt to open
+the file in "exact mode", which means ZAP will show all booklets and images in
+alphabetic order, will not attempt to try alternative encodings of wrongly
+encoded filenames in the ZIP file to match filenames in a playlist, and will
+not apply any fixes to track numbering.
+The option `--create` has no effect when `PATH` is a Zipped Album File.
+If `PATH` is a directory and `--create` is given, ZAP will attempt to create a
+Zipped Album file from the content in that directory (see
+[specification](https://github.com/zipped-album/zlbm#specification) for what
+is valid content) and then open the resulting file (in "exact mode" if
+`--exact` is also given).
+If `PATH` is a directory and no option is given, ZAP will set the initial
+directory of the "Open..." dialogue to that directory.
 
 ### Keyboard navigation
 
@@ -147,7 +157,7 @@ Increase volume: ........................ Shift+Up....... or ........ K
   
 * **Where can I find music in a format ZAP plays?**
 
-   ZAP plays [Zipped Albums](https://github.com/zipped-album/zlbm), a simple one-file format for digital audio. Basically, these are ZIP archives of FLAC or Opus files with an optional digital booklet and playlist. Albums downloaded from [Bandcamp](https://bandcamp.com) in FLAC format, for instance, are compatible, but you can also easily create them yourself from your existing music.
+   ZAP plays [Zipped Albums](https://github.com/zipped-album/zlbm), a simple one-file format for digital audio. Basically, these are ZIP archives of FLAC or Opus files with an optional digital booklet and playlist. Albums downloaded from [Bandcamp](https://bandcamp.com) in FLAC format, for instance, are compatible, but you can also easily create them yourself from your existing music (using ZAP!).
       
 * **Couldn't you provide simple one-click installers/executables for ZAP?**
 
