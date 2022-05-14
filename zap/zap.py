@@ -667,6 +667,7 @@ class MainApplication(ttk.Frame):
         tree_frame.grid(column=0, row=1, sticky="nesw")
         tree_frame.columnconfigure(0, weight=1)
         tree_frame.rowconfigure(0, weight=1)
+        self.tree_frame = tree_frame
         self.style.configure('Treeview', relief="flat", borderwidth=1 * SCALING)
         self.tree = ttk.Treeview(tree_frame, show="tree", selectmode="browse")
         self.tree.tag_configure('normal', font=(FONTNAME, FONTSIZE))
@@ -1027,6 +1028,8 @@ class MainApplication(ttk.Frame):
         self.title["text"] = ""
         self.artist["text"] = "Opening Album..."
         self.info["text"] = ""
+        self.tree_frame.grid_remove()
+        self.tree_frame.grid()
         self.parent.update()
 
         # Load new album
