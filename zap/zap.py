@@ -767,6 +767,7 @@ class MainApplication(ttk.Frame):
             self.parent.bind("<F1>", lambda e: HelpDialogue(self.master))
         self.parent.bind(f"<{modifier}-q>", lambda e: self.quit())
 
+        self._last_increment_track = time.monotonic()
         def increment_track(step):
             selected_track_id = self.selected_track_id + step
             if 0 <= selected_track_id < len(self.loaded_album.tracklist):
@@ -774,6 +775,9 @@ class MainApplication(ttk.Frame):
                     return
                 play_next = False
                 if self.playing_track_id is not None:
+                    if time.monotonic() - self._last_increment_track < 0.5:
+                        return
+                    self._last_increment_track = time.monotonic()
                     self.pause()
                     play_next = True
                 selected_track_id = self.selected_track_id + step
@@ -797,8 +801,20 @@ class MainApplication(ttk.Frame):
             if self.selected_track_id not in (None, 0):
                 increment_track(-self.selected_track_id)
 
+        self._first_g_key_pressed = False
+        self._first_g_key_time = time.monotonic()
+        def goto_first_track_vim(e):
+            if self.selected_track_id not in (None, 0):
+                if self._first_g_key_pressed:
+                    if time.monotonic() - self._first_g_key_time < 1:
+                        increment_track(-self.selected_track_id)
+                        self._first_g_key_pressed = False
+                else:
+                    self._first_g_key_pressed = True
+                self._first_g_key_time = time.monotonic()
+
         self.parent.bind("<Home>", goto_first_track)
-        self.parent.bind("<g><g>", goto_first_track)
+        self.parent.bind("<g>", goto_first_track_vim)
 
         def goto_last_track(e):
             length = len(self.loaded_album.tracklist) - 1
