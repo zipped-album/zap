@@ -803,6 +803,7 @@ class MainApplication(ttk.Frame):
 
         self._first_g_key_pressed = False
         self._first_g_key_time = time.monotonic()
+
         def goto_first_track_vim(e):
             if self.selected_track_id not in (None, 0):
                 if self._first_g_key_pressed:
@@ -861,6 +862,8 @@ class MainApplication(ttk.Frame):
             if hasattr(self, "player"):
                 if str(self.playpause_button["state"]) == "disabled":
                     return
+                if time.monotonic() - self._last_increment_track < 0.5:
+                        return
                 playing_id = self.playing_track_id
                 self.playpause()
                 if playing_id is not None:
@@ -1120,18 +1123,18 @@ class MainApplication(ttk.Frame):
                 dur = track["streaminfo"]["duration"]
                 tickspeed = UPDATE_INTERVALL / 1000
                 pos = self.playhead / 100 * dur + tickspeed
-                start = time.time()
+                start = time.monotonic()
                 buffer_time = self.player.buffer_time
                 # Update GUI after running out of audio data
                 while True:
-                    current_time = time.time()
+                    current_time = time.monotonic()
                     max_time = min(dur - (pos - tickspeed), 2 * buffer_time)
                     if current_time - start >= max_time:
                         break
-                    self.playhead = 100 / dur * (pos + time.time() - start)
+                    self.playhead = 100 / dur * (pos + time.monotonic() - start)
                     self.player.update(tick_only=True)
                     self.parent.update()
-                    sleep_time = tickspeed - (time.time() - current_time)
+                    sleep_time = tickspeed - (time.monotonic() - current_time)
                     if sleep_time > 0:
                         time.sleep(sleep_time)
                 self.playpause_button["state"] = "normal"
@@ -1185,18 +1188,18 @@ class MainApplication(ttk.Frame):
                 dur = track["streaminfo"]["duration"]
                 tickspeed = UPDATE_INTERVALL / 1000
                 pos = self.playhead / 100 * dur + tickspeed
-                start = time.time()
+                start = time.monotonic()
                 buffer_time = self.player.buffer_time
                 # Update playhead after running out of audio data
                 while True:
-                    current_time = time.time()
+                    current_time = time.monotonic()
                     max_time = min(dur - (pos - tickspeed), 2 * buffer_time)
                     if current_time - start >= max_time:
                         break
-                    self.playhead = 100 / dur * (pos + time.time() - start)
+                    self.playhead = 100 / dur * (pos + time.monotonic() - start)
                     self.player.update(tick_only=True)
                     self.parent.update()
-                    sleep_time = tickspeed - (time.time() - current_time)
+                    sleep_time = tickspeed - (time.monotonic() - current_time)
                     if sleep_time > 0:
                         time.sleep(sleep_time)
                 self.playpause_button["state"] = "normal"
