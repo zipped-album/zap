@@ -95,14 +95,14 @@ def download_ffmpeg(progress=None):
     url_base = "https://github.com/zipped-album/zap-binaries/raw/main/ffmpeg"
 
     if progress:
-        progress(0, 100, filename)
+        progress(0, 100, "")
 
     try:
         filename = f"ffmpeg5-{platform}.zip"
         url = f"{url_base}/{filename}"
         r = Request(url, headers={"Accept-Encoding": "gzip; deflate"})
         u = urlopen(r)
-    except:
+    except Exception:
         filename = f"ffmpeg4-{platform}.zip"
         url = f"{url_base}/{filename}"
         r = Request(url, headers={"Accept-Encoding": "gzip; deflate"})
