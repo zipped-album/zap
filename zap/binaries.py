@@ -93,14 +93,20 @@ def get_platform():
 def download_ffmpeg(progress=None):
     platform = get_platform()
     url_base = "https://github.com/zipped-album/zap-binaries/raw/main/ffmpeg"
-    filename = f"ffmpeg4-{platform}.zip"
-    url = f"{url_base}/{filename}"
 
     if progress:
         progress(0, 100, filename)
 
-    r = Request(url, headers={"Accept-Encoding": "gzip; deflate"})
-    u = urlopen(r)
+    try:
+        filename = f"ffmpeg5-{platform}.zip"
+        url = f"{url_base}/{filename}"
+        r = Request(url, headers={"Accept-Encoding": "gzip; deflate"})
+        u = urlopen(r)
+    except:
+        filename = f"ffmpeg4-{platform}.zip"
+        url = f"{url_base}/{filename}"
+        r = Request(url, headers={"Accept-Encoding": "gzip; deflate"})
+        u = urlopen(r)
 
     with TemporaryFile() as f:
         meta = u.info()
