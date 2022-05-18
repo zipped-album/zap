@@ -940,6 +940,9 @@ class MainApplication(ttk.Frame):
                     self.pause()
                     play = True
                 selected_track_id = int(item_id)
+                self.tree.selection_set([str(selected_track_id)])
+                self.tree.focus(str(selected_track_id))
+                self.tree.see(str(selected_track_id))
                 self.selected_track_id = selected_track_id
                 self.load_track()
                 self.player.clear_on_queue = True
@@ -1052,9 +1055,9 @@ class MainApplication(ttk.Frame):
         self.parent.update()
 
         # Load new album
-        if True:
+        try:
             self.loaded_album = ZippedAlbum(path, exact=exact)
-        else:
+        except:
             self.artist["text"] = "No Album"
             file = os.path.split(path)[-1]
             messagebox.showerror(
