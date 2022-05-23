@@ -475,29 +475,21 @@ class GaplessAudioPlayer(AudioPlayer):
                 current_duration = self._current_duration
                 super().seek(time)
 
-    def update(self, tick_only=False):
-        """Update the audio player.
+    def update(self):
+        """Update the audio player."""
 
-        Parameters
-        ----------
-        tick_only : bool (default=False)
-            if True, only tick the pyglet clock and process events
-
-        """
-
-        if tick_only:
-            return
-        if self._current_duration is not None:
-            if self._sourcegroup._advanced:
-                self._sourcegroup._advanced = False
-                self._on_gapless_eos()
-            if self.time > self._current_duration:
-                if len(self._sourcegroup._sources) > 0:
-                    self._player._timer.set_time(self.time - \
-                                                 self._current_duration)
-                    self._current_duration = \
-                        self._sourcegroup._sources[0].duration
-                else:
-                    self._current_duration = None
-        if self._sourcegroup._sources == []:
+        if self._sourcegroup._sources != []:
+            if self._current_duration is not None:
+                if self._sourcegroup._advanced:
+                    self._sourcegroup._advanced = False
+                    self._on_gapless_eos()
+                if self.time > self._current_duration:
+                    if len(self._sourcegroup._sources) > 0:
+                        self._player._timer.set_time(self.time - \
+                                                     self._current_duration)
+                        self._current_duration = \
+                            self._sourcegroup._sources[0].duration
+                    else:
+                        self._current_duration = None
+        else:
             self._on_eos()

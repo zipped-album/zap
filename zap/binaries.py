@@ -114,6 +114,7 @@ def download_ffmpeg(progress=None):
             file_size = int(u.getheader('Content-Length'))
             file_size_dl = 0
             block_size = 8192
+            percents = 0
             while True:
                 buffer = u.read(block_size)
                 if not buffer:
@@ -121,7 +122,10 @@ def download_ffmpeg(progress=None):
                 file_size_dl += len(buffer)
                 f.write(buffer)
                 if progress:
-                    progress(file_size_dl, file_size, filename)
+                    percents_new = int(100.0 * file_size_dl / float(file_size))
+                    if percents_new > percents:
+                        percents = percents_new
+                        progress(percents, 100, filename)
         except Exception:
             if progress:
                 progress(0, 100, filename)

@@ -30,6 +30,8 @@ FIX_TRACKNUMBERS = True # True: skip leading zeros in tracknumber tag and
                         #       assign succesive numbers if no tracknumber tag
                         # False: leave leading zeros in tracknumbers and omit
                         #        tracks without tracknumber tag
+FIX_DATE = True         # True: try "year" tag if no "date" tag is found
+                        # False: don't try "year" tag if no "date" tag is found
 
 def _get_content(files):
     content = {"tracks": [],
@@ -143,6 +145,7 @@ class ZippedAlbum:
         self._strict_slides = STRICT_SLIDES
         self._alt_encodings = ALT_ENCODINGS
         self._fix_tracknumbers = FIX_TRACKNUMBERS
+        self._fix_date = FIX_DATE
         assert self._content["tracks"]
 
         if exact:
@@ -150,6 +153,7 @@ class ZippedAlbum:
             self._strict_slides = False
             self._alt_encodings = False
             self._fix_tracknumbers = False
+            self._fix_date = False
 
     def __del__(self):
         if hasattr(self, "_archive"):
@@ -271,7 +275,15 @@ class ZippedAlbum:
                 self._year = dateutil.parser.parse(self.playlist["date"]).year
             else:
                 try:
-                    date = [v["tags"]["date"] for k,v in self.tracks.items()]
+                    date = []
+                    for k,v in self.tracks.items():
+                        try:
+                            date.append(v["tags"]["date"])
+                        except KeyError as e:
+                            if self._fix_date:
+                                date.append(v["tags"]["year"])
+                            else:
+                                raise e
                     lowest = 9999
                     highest = 0
                     for d in date:

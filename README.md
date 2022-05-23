@@ -125,7 +125,7 @@ If PATH is a Zipped Album file and `--exact` is given, ZAP will attempt to open
 the file in "exact mode", which means ZAP will show all booklets and images in
 alphabetic order, will not attempt to try alternative encodings of wrongly
 encoded filenames in the ZIP file to match filenames in a playlist, and will
-not apply any fixes to track numbering.
+not apply any fixes to track numbering or date tags.
 The option `--create` has no effect when `PATH` is a Zipped Album File.
 If `PATH` is a directory and `--create` is given, ZAP will attempt to create a
 Zipped Album file from the content in that directory (see

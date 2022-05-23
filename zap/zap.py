@@ -236,8 +236,15 @@ class TrackTooltip:
                           wraplength=self.treeview.winfo_width() - 120)
         label.grid(row=1, column= 0, padx=2, ipadx=0, ipady=0, sticky="nw")
         try:
-            year = "; ".join([str(
-                dateutil.parser.parse(x).year) for x in track["tags"]["date"]])
+            try:
+                year = "; ".join([str(dateutil.parser.parse(x).year) \
+                                  for x in track["tags"]["date"]])
+            except KeyError as e:
+                if self.album._fix_date:
+                    year = "; ".join([str(dateutil.parser.parse(x).year) \
+                                      for x in track["tags"]["year"]])
+                else:
+                    raise e
         except:
             year = "Unknown Year"
         label = ttk.Label(self.frame, text=year, justify=tk.LEFT,
@@ -346,7 +353,7 @@ class DownloadFFmpegDialogue:
             self.progressbar["value"] = percents
             self.text1["text"] = message
             self.text2["text"] = f"{percents} %"
-            self.top.update_idletasks()
+            self.top.update()
 
         try:
             download_ffmpeg(_progress)
@@ -1117,7 +1124,7 @@ class MainApplication(ttk.Frame):
         if len(set([type(x) for x in self.loaded_album.tracklist])) == 1:
             self.player = GaplessAudioPlayer()
         else:
-            self.player = AudioPlayer()
+            self.player = GaplessAudioPlayer()  #AudioPlayer()
 
         def next_gapless():
             if self.selected_track_id + 1 < len(self.loaded_album.tracklist):
@@ -1135,7 +1142,6 @@ class MainApplication(ttk.Frame):
                     if current_time - start >= max_time:
                         break
                     self.playhead = 100 / dur * (pos + time.monotonic() - start)
-                    self.player.update(tick_only=True)
                     self.parent.update()
                     sleep_time = tickspeed - (time.monotonic() - current_time)
                     if sleep_time > 0:
@@ -1163,6 +1169,25 @@ class MainApplication(ttk.Frame):
                 self.set_title()
 
         def next():
+            self.playpause_button["state"] = "disabled"
+            track = self.loaded_album.tracklist[self.selected_track_id]
+            dur = track["streaminfo"]["duration"]
+            tickspeed = UPDATE_INTERVALL / 1000
+            pos = self.playhead / 100 * dur + tickspeed
+            start = time.monotonic()
+            buffer_time = self.player.buffer_time
+            # Update playhead after running out of audio data
+            while True:
+                current_time = time.monotonic()
+                max_time = min(dur - (pos - tickspeed), 2 * buffer_time)
+                if current_time - start >= max_time:
+                    break
+                self.playhead = 100 / dur * (pos + time.monotonic() - start)
+                self.parent.update()
+                sleep_time = tickspeed - (time.monotonic() - current_time)
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+            self.playpause_button["state"] = "normal"
             if self.selected_track_id + 1 < len(self.loaded_album.tracklist):
                 tags = self.tree.item(str(self.selected_track_id), "tags")
                 tags = [x for x in tags if x != "bold"]
@@ -1186,26 +1211,6 @@ class MainApplication(ttk.Frame):
                 self.load_track()
                 self.set_title()
             else:
-                self.playpause_button["state"] = "disabled"
-                track = self.loaded_album.tracklist[self.selected_track_id]
-                dur = track["streaminfo"]["duration"]
-                tickspeed = UPDATE_INTERVALL / 1000
-                pos = self.playhead / 100 * dur + tickspeed
-                start = time.monotonic()
-                buffer_time = self.player.buffer_time
-                # Update playhead after running out of audio data
-                while True:
-                    current_time = time.monotonic()
-                    max_time = min(dur - (pos - tickspeed), 2 * buffer_time)
-                    if current_time - start >= max_time:
-                        break
-                    self.playhead = 100 / dur * (pos + time.monotonic() - start)
-                    self.player.update(tick_only=True)
-                    self.parent.update()
-                    sleep_time = tickspeed - (time.monotonic() - current_time)
-                    if sleep_time > 0:
-                        time.sleep(sleep_time)
-                self.playpause_button["state"] = "normal"
                 if self.playing_track_id is not None:
                     self.pause()
                 self.tree.selection_set(["0"])
