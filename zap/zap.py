@@ -413,16 +413,23 @@ class MainApplication(ttk.Frame):
         self.selected_track_id = None
         self.playing_track_id = None
         self.resize_after_id = None
+        self.last_update_player = 0
+        self.now = time.monotonic
 
         def update_player():
             try:
                 if hasattr(self, "player") and self.player.is_playing:
                     self.player.update()
-                    track = self.loaded_album.tracklist[self.selected_track_id]
-                    time = self.player.time
-                    if str(self.playpause_button["state"]) == "normal":
-                        playhead = 100 / track["streaminfo"]["duration"] * time
-                        self.playhead = playhead
+                    now = self.now()
+                    if now - self.last_update_player >= 1:
+                        track = self.loaded_album.tracklist[
+                            self.selected_track_id]
+                        time = self.player.time
+                        if str(self.playpause_button["state"]) == "normal":
+                            playhead = 100 / track["streaminfo"]["duration"] \
+                                * time
+                            self.playhead = playhead
+                        self.last_update_player = now
                 self.after(UPDATE_INTERVALL, update_player)
             except tk._tkinter.TclError:
                 pass
@@ -712,6 +719,7 @@ class MainApplication(ttk.Frame):
 
         slider_frame = ttk.Frame(frame_bottom, height=int(10 * SCALING))
         slider_frame.grid(column=1, row=0, sticky="ew", padx=PADDING/2)
+        self.style.configure("TProgressbar", period = 0, maxphase =0)
         self.playhead_slider = ttk.Progressbar(slider_frame,
                                                orient="horizontal",
                                                mode='determinate', length=100,
@@ -774,7 +782,7 @@ class MainApplication(ttk.Frame):
             self.parent.bind("<F1>", lambda e: HelpDialogue(self.master))
         self.parent.bind(f"<{modifier}-q>", lambda e: self.quit())
 
-        self._last_increment_track = time.monotonic()
+        self._last_increment_track = self.now()
         def increment_track(step):
             selected_track_id = self.selected_track_id + step
             if 0 <= selected_track_id < len(self.loaded_album.tracklist):
@@ -782,9 +790,9 @@ class MainApplication(ttk.Frame):
                     return
                 play_next = False
                 if self.playing_track_id is not None:
-                    if time.monotonic() - self._last_increment_track < 0.5:
+                    if self.now() - self._last_increment_track < 0.5:
                         return
-                    self._last_increment_track = time.monotonic()
+                    self._last_increment_track = self.now()
                     self.pause()
                     play_next = True
                 selected_track_id = self.selected_track_id + step
@@ -809,17 +817,17 @@ class MainApplication(ttk.Frame):
                 increment_track(-self.selected_track_id)
 
         self._first_g_key_pressed = False
-        self._first_g_key_time = time.monotonic()
+        self._first_g_key_time = self.now()
 
         def goto_first_track_vim(e):
             if self.selected_track_id not in (None, 0):
                 if self._first_g_key_pressed:
-                    if time.monotonic() - self._first_g_key_time < 1:
+                    if self.now() - self._first_g_key_time < 1:
                         increment_track(-self.selected_track_id)
                         self._first_g_key_pressed = False
                 else:
                     self._first_g_key_pressed = True
-                self._first_g_key_time = time.monotonic()
+                self._first_g_key_time = self.now()
 
         self.parent.bind("<Home>", goto_first_track)
         self.parent.bind("<g>", goto_first_track_vim)
@@ -869,7 +877,7 @@ class MainApplication(ttk.Frame):
             if hasattr(self, "player"):
                 if str(self.playpause_button["state"]) == "disabled":
                     return
-                if time.monotonic() - self._last_increment_track < 0.5:
+                if self.now() - self._last_increment_track < 0.5:
                         return
                 playing_id = self.playing_track_id
                 self.playpause()
@@ -1133,17 +1141,17 @@ class MainApplication(ttk.Frame):
                 dur = track["streaminfo"]["duration"]
                 tickspeed = UPDATE_INTERVALL / 1000
                 pos = self.playhead / 100 * dur + tickspeed
-                start = time.monotonic()
+                start = self.now()
                 buffer_time = self.player.buffer_time
                 # Update GUI after running out of audio data
                 while True:
-                    current_time = time.monotonic()
+                    current_time = self.now()
                     max_time = min(dur - (pos - tickspeed), 2 * buffer_time)
                     if current_time - start >= max_time:
                         break
-                    self.playhead = 100 / dur * (pos + time.monotonic() - start)
+                    self.playhead = 100 / dur * (pos + self.now() - start)
                     self.parent.update()
-                    sleep_time = tickspeed - (time.monotonic() - current_time)
+                    sleep_time = tickspeed - (self.now() - current_time)
                     if sleep_time > 0:
                         time.sleep(sleep_time)
                 self.playpause_button["state"] = "normal"
@@ -1174,17 +1182,17 @@ class MainApplication(ttk.Frame):
             dur = track["streaminfo"]["duration"]
             tickspeed = UPDATE_INTERVALL / 1000
             pos = self.playhead / 100 * dur + tickspeed
-            start = time.monotonic()
+            start = self.now()
             buffer_time = self.player.buffer_time
             # Update playhead after running out of audio data
             while True:
-                current_time = time.monotonic()
+                current_time = self.now()
                 max_time = min(dur - (pos - tickspeed), 2 * buffer_time)
                 if current_time - start >= max_time:
                     break
-                self.playhead = 100 / dur * (pos + time.monotonic() - start)
+                self.playhead = 100 / dur * (pos + self.now() - start)
                 self.parent.update()
-                sleep_time = tickspeed - (time.monotonic() - current_time)
+                sleep_time = tickspeed - (self.now() - current_time)
                 if sleep_time > 0:
                     time.sleep(sleep_time)
             self.playpause_button["state"] = "normal"
