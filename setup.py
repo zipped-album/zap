@@ -41,7 +41,7 @@ setup(
     install_requires = ["pillow>=7.0.0,<=9.1.1",
                         "PyMuPDF>=1.17.4,<=1.19.6",
                         "audio-metadata==0.11.1",
-                        "pyglet==1.5.25"],
+                        "pyglet==1.5.26"],
     entry_points={
         'gui_scripts': [
             'zap = zap.__main__:run',
