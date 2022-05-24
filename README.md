@@ -11,6 +11,7 @@
 * Keyboard navigation (with Vi-like alternatives)
 * View presets
 * Fullscreen mode
+* Zipped Album creation
 
 ## Installation
 
@@ -118,20 +119,20 @@ or
 zipped-album-player [--exact] [--create] [PATH]
 ```
 where the optional `PATH` is a Zipped Album file or a directory, and `--exact`
-and `--create` are options.
+and `--create` are options.  
 If `PATH` is a Zipped Album file and no option is given, ZAP will attempt to
-open it.
+open it.  
 If PATH is a Zipped Album file and `--exact` is given, ZAP will attempt to open
 the file in "exact mode", which means ZAP will show all booklets and images in
 alphabetic order, will not attempt to try alternative encodings of wrongly
 encoded filenames in the ZIP file to match filenames in a playlist, and will
-not apply any fixes to track numbering or date tags.
-The option `--create` has no effect when `PATH` is a Zipped Album File.
+not apply any fixes to track numbering or date tags.  
+The option `--create` has no effect when `PATH` is a Zipped Album File.  
 If `PATH` is a directory and `--create` is given, ZAP will attempt to create a
 Zipped Album file from the content in that directory (see
 [specification](https://github.com/zipped-album/zlbm#specification) for what
 is valid content) and then open the resulting file (in "exact mode" if
-`--exact` is also given).
+`--exact` is also given).  
 If `PATH` is a directory and no option is given, ZAP will set the initial
 directory of the "Open..." dialogue to that directory.
 
