@@ -64,11 +64,11 @@ ZAP will attempt to download a local copy the first time it is started.
 
 **Note**:
 
-On ARM-based Macs you will, for now, still need to have FFmpeg 4 (shared
+On ARM-based Macs you will, for now, still need to have FFmpeg (shared
 libraries) installed on the system. You can install them, for instance, using
 Homebrew:
 ```
-brew install ffmpeg@4
+brew install ffmpeg
 ```
    
 ### Linux
