@@ -30,6 +30,8 @@ def _f(q):
         q.put(False)
 
 def has_ffmpeg():
+    """Return boolean indicating whether FFmpeg can be found."""
+
     import multiprocessing
     q = multiprocessing.Queue()
     multiprocessing.freeze_support()
@@ -89,8 +91,17 @@ def get_platform():
 
     return f"{system}_{machine}"
 
-
 def download_ffmpeg(progress=None):
+    """Attempt to download FFmpeg binaries.
+    
+    Parameters
+    ----------
+    progress : function, optional
+        function to be called for progress reporting with the three positional
+        arguments "count", "total" and "message"
+        
+    """
+    
     platform = get_platform()
     url_base = "https://github.com/zipped-album/zap-binaries/raw/main/ffmpeg"
 
