@@ -2,7 +2,8 @@
 
 ***A simple Python-based cross-platform player for the [Zipped Album](https://github.com/zipped-album/zlbm) format***
 
-<img width="1136" alt="zap_macos_preset4default" src="https://user-images.githubusercontent.com/2971539/147706659-6b42018e-a304-419c-b030-c3232e691165.png">
+![zap_screenshot_all](https://user-images.githubusercontent.com/2971539/170848073-e3b768c4-b443-4b66-89c9-902251d14e3f.png)
+
 
 ## Features
 
