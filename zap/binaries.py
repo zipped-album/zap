@@ -93,31 +93,33 @@ def get_platform():
 
 def download_ffmpeg(progress=None):
     """Attempt to download FFmpeg binaries.
-    
+
     Parameters
     ----------
     progress : function, optional
         function to be called for progress reporting with the three positional
         arguments "count", "total" and "message"
-        
+
     """
-    
+
     platform = get_platform()
     url_base = "https://github.com/zipped-album/zap-binaries/raw/main/ffmpeg"
 
     if progress:
         progress(0, 100, "")
 
-    try:
-        filename = f"ffmpeg5-{platform}.zip"
-        url = f"{url_base}/{filename}"
-        r = Request(url, headers={"Accept-Encoding": "gzip; deflate"})
-        u = urlopen(r)
-    except Exception:
-        filename = f"ffmpeg4-{platform}.zip"
-        url = f"{url_base}/{filename}"
-        r = Request(url, headers={"Accept-Encoding": "gzip; deflate"})
-        u = urlopen(r)
+    for version in (6,5,4):
+        try:
+            filename = f"ffmpeg{version}-{platform}.zip"
+            url = f"{url_base}/{filename}"
+            r = Request(url, headers={"Accept-Encoding": "gzip; deflate"})
+            u = urlopen(r)
+            success = True
+        except Exception as e:
+            if version == 4:
+                raise e
+            else:
+                pass
 
     with TemporaryFile() as f:
         meta = u.info()

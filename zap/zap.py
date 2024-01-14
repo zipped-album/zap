@@ -31,6 +31,7 @@ except ModuleNotFoundError:
     sys.exit()
 
 from PIL import ImageTk, Image
+from PIL import __version__ as pil_version
 
 from .__meta__ import __author__, __version__
 from .album import ZippedAlbum, create_zipped_album
@@ -208,7 +209,10 @@ class TrackTooltip:
             im = Image.open(io.BytesIO(track["pictures"][0].data))
         else:
             im = Image.open(self.album.get_slide(0))
-        im = im.resize((100, 100), Image.ANTIALIAS)
+        if int(pil_version.split(".")[0]) < 10:
+            im = im.resize((100, 100), Image.ANTIALIAS)
+        else:
+            im = im.resize((100, 100), Image.LANCZOS)
         self.photo = ImageTk.PhotoImage(im)
         im.close()
         label = tk.Label(self.tooltip_window, image=self.photo,

@@ -37,11 +37,11 @@ setup(
     packages = ['zap'],
     package_data = {'zap': ['*.png',
                             '*.ico']},
-    python_requires=">=3.6",
-    install_requires = ["pillow>=7.0.0,<=9.1.1",
-                        "PyMuPDF>=1.17.4,<=1.19.6",
+    python_requires=">=3.8",
+    install_requires = ["pillow>=7.0.0,<=10.2.0",
+                        "PyMuPDF>=1.17.4,<=1.23.12",
                         "audio-metadata==0.11.1",
-                        "pyglet==1.5.26"],
+                        "pyglet==2.0.10"],
     entry_points={
         'gui_scripts': [
             'zap = zap.__main__:run',

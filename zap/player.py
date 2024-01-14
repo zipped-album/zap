@@ -92,7 +92,9 @@ class FFmpegSource(FFmpegSource):
         self._packet = None
         self._video_stream = None
         self._audio_stream = None
+        self._stream_end = False
         self._file = None
+        self._memory_file = None
 
         self._file = ffmpeg_open_filename(asbytes_filename(filename))
         if not self._file:
@@ -234,7 +236,7 @@ class FFmpegDecoder(FFmpegDecoder):
     """Modified FFmpegDecoder to load modified FFmpegSource."""
 
     def decode(self, file, filename, streaming=True):
-        return FFmpegSource(filename, file)
+        return FFmpegSource(file, filename)
 
 
 class AudioPlayer:
