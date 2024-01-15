@@ -18,6 +18,7 @@ else:
 
 import pyglet
 pyglet.options['search_local_libs'] = True
+pyglet.options['audio'] = ('openal', 'directsound', 'silent')
 
 try:
     assert pyglet.media.codecs.have_ffmpeg()
@@ -25,7 +26,6 @@ except:
     raise RuntimeError("Error loading FFmpeg shared libraries!")
 
 from pyglet.media.codecs.ffmpeg import *
-pyglet.options['audio'] = ('openal', 'directsound', 'silent')
 
 from .__meta__ import __author__, __version__
 
