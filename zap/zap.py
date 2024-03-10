@@ -403,6 +403,7 @@ class MainApplication(ttk.Frame):
         self.size = [WIDTH, HEIGHT]
         self.repeat_album = tk.BooleanVar()
         self.repeat_album.set(False)
+        self.hide_menubar = False
         self.create_menu()
         self.create_widgets()
         self.remove_arrows()
@@ -486,8 +487,14 @@ class MainApplication(ttk.Frame):
         allowed_extensions = "*.zip *.zlbm"
         filetypes = [("Zipped Album files", allowed_extensions),
                      ("All files", "*.*")]
+        was_always_on_top = self.always_on_top
+        if was_always_on_top:
+            self.toggle_always_on_top()
         filename = filedialog.askopenfilename(initialdir=initialdir,
                                               filetypes=filetypes)
+        if was_always_on_top:
+            self.toggle_always_on_top()
+
         if filename:
             self.load_album(filename, exact=exact)
             self.parent.focus_force()
@@ -562,6 +569,9 @@ class MainApplication(ttk.Frame):
                                    command=self.fit_to_slides,
                                    accelerator=f"{modifier}-0")
         self.view_menu.add_checkbutton(
+            label="Hide menubar",
+            command=self.toggle_hide_menubar)
+        self.view_menu.add_checkbutton(
             label="Always on top",
             command=self.toggle_always_on_top)
         self.view_menu.add_checkbutton(label="Fullscreen",
@@ -578,7 +588,14 @@ class MainApplication(ttk.Frame):
                 command=lambda: HelpDialogue(self.master),
                 accelerator="F1")
 
-        self.parent["menu"] = self.menubar
+        if not self.hide_menubar:
+            self.parent["menu"] = self.menubar
+
+    def show_context_menu(self, event):
+        try:
+            self.menubar.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.menubar.grab_release()
 
     def change_menu_state(self, state):
         self.menubar.entryconfig("File", state=state)
@@ -909,6 +926,9 @@ class MainApplication(ttk.Frame):
 
         self.parent.bind("<parenright>", switch_to_first_image)
         self.parent.bind("<W>", switch_to_first_image)
+
+        # Mouse (global)
+        self.parent.bind("<Button-2>", self.show_context_menu)
 
         # Mouse (specific widgets)
         self.canvas.bind("<Enter>", lambda e: self.add_arrows())
@@ -1487,6 +1507,13 @@ class MainApplication(ttk.Frame):
                 self.parent.geometry(f"{height + (WIDTH - HEIGHT)}x{height}")
             elif width < height:
                 self.parent.geometry(f"{width + (WIDTH - HEIGHT)}x{width}")
+
+    def toggle_hide_menubar(self, event=None):
+        self.hide_menubar = not self.hide_menubar
+        if self.hide_menubar:
+            self.parent["menu"] = ""
+        else:
+            self.parent["menu"] = self.menubar
 
     def toggle_always_on_top(self, event=None):
         self.parent.attributes('-topmost', not self.always_on_top)
