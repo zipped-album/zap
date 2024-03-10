@@ -514,7 +514,7 @@ class MainApplication(ttk.Frame):
                 print("Unknown error")
 
     def create_menu(self):
-        self.menubar = tk.Menu(self.parent)
+        self.menubar = tk.Menu(self.parent, tearoff=False)
         if platform.system() == "Darwin":
             modifier = "Command"
             self.apple_menu = tk.Menu(self.menubar, name="apple")
