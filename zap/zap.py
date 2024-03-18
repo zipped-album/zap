@@ -403,15 +403,18 @@ class MainApplication(ttk.Frame):
         self.size = [WIDTH, HEIGHT]
         self.repeat_album = tk.BooleanVar()
         self.repeat_album.set(False)
-        self.hide_menubar = False
+        self.show_menubar = tk.BooleanVar()
+        self.show_menubar.set(True)
+        self.always_on_top = tk.BooleanVar()
+        self.always_on_top.set(False)
+        self.fullscreen = tk.BooleanVar()
+        self.fullscreen.set(False)
         self.create_menu()
         self.create_widgets()
         self.remove_arrows()
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=0)
         self.rowconfigure(0, weight=1)
-        self.always_on_top = False
-        self.fullscreen = False
         #self.create_bindings()
         self.loaded_album = None
         self.current_image = None
@@ -487,7 +490,7 @@ class MainApplication(ttk.Frame):
         allowed_extensions = "*.zip *.zlbm"
         filetypes = [("Zipped Album files", allowed_extensions),
                      ("All files", "*.*")]
-        was_always_on_top = self.always_on_top
+        was_always_on_top = self.always_on_top.get()
         if was_always_on_top:
             self.toggle_always_on_top()
         filename = filedialog.askopenfilename(initialdir=initialdir,
@@ -514,11 +517,18 @@ class MainApplication(ttk.Frame):
                 print("Unknown error")
 
     def create_menu(self):
-        self.menubar = tk.Menu(self.parent, tearoff=False)
+        self.menu = tk.Menu(self.parent, tearoff=False)  # right-click menu
+        self.menubar = tk.Menu(self.parent, tearoff=False)  # menubar
+
+        self.menu.add_command(
+                label="About ZAP",
+                command=lambda: HelpDialogue(self.master),
+                accelerator="F1")
+
         if platform.system() == "Darwin":
             modifier = "Command"
             self.apple_menu = tk.Menu(self.menubar, name="apple")
-            self.menubar.add_cascade(menu=self.apple_menu, label="Python")
+            self.menubar.add_cascade(menu=self.apple_menu, label="ZAP")
             self.apple_menu.add_command(
                 label="About ZAP",
                 command=lambda: HelpDialogue(self.master),
@@ -527,6 +537,18 @@ class MainApplication(ttk.Frame):
         else:
             modifier = "Control"
             view_menu_label = "View"
+
+        self.menu.add_separator()
+        self.menu.add_command(label="Open...",
+                              command=self._open_album,
+                              accelerator=f"{modifier}-O")
+        self.menu.add_command(label="Open exact...",
+                              command=lambda: self._open_album(exact=True))
+        self.menu.add_separator()
+        self.menu.add_command(label="Create...",
+                              command=self._create_album)
+        self.menu.add_separator()
+
         self.file_menu = tk.Menu(self.menubar, tearoff=False)
         self.menubar.add_cascade(menu=self.file_menu, label="File")
 
@@ -535,13 +557,17 @@ class MainApplication(ttk.Frame):
                                    accelerator=f"{modifier}-O")
         self.file_menu.add_command(label="Open exact...",
                                    command=lambda: self._open_album(exact=True))
+        self.file_menu.add_separator()
         self.file_menu.add_command(label="Create...",
                                    command=self._create_album)
-        self.options_menu = tk.Menu(self.menubar, tearoff=False)
-        self.menubar.add_cascade(menu=self.options_menu, label="Options")
-        self.options_menu.add_checkbutton(label="Repeat",
-                                          variable=self.repeat_album)
+        if platform.system() != "Darwin":
+            self.file_menu.add_separator()
+            self.file_menu.add_command(label="Quit",
+                                       command=self.quit,
+                                       accelerator=f"{modifier}-Q")
+
         self.view_menu = tk.Menu(self.menubar, tearoff=False)
+        self.menu.add_cascade(menu=self.view_menu, label=view_menu_label)
         self.menubar.add_cascade(menu=self.view_menu, label=view_menu_label)
         self.view_presets_menu = tk.Menu(self.view_menu, tearoff=False)
         self.view_menu.add_cascade(menu=self.view_presets_menu, label="Preset")
@@ -568,34 +594,56 @@ class MainApplication(ttk.Frame):
         self.view_menu.add_command(label="Fit to slides",
                                    command=self.fit_to_slides,
                                    accelerator=f"{modifier}-0")
+        self.view_menu.add_separator()
         self.view_menu.add_checkbutton(
-            label="Hide menubar",
-            command=self.toggle_hide_menubar)
+            label="Show menubar",
+            variable=self.show_menubar,
+            command=self.toggle_show_menubar)
         self.view_menu.add_checkbutton(
             label="Always on top",
+            variable=self.always_on_top,
             command=self.toggle_always_on_top)
         self.view_menu.add_checkbutton(label="Fullscreen",
+                                       variable=self.fullscreen,
                                        command=self.toggle_fullscreen,
                                        accelerator="F11")
+        if platform.system() == "Darwin":
+            self.view_menu.entryconfig("Show menubar", state="disabled")
+        else:
+            self.view_menu.entryconfig("Show menubar",
+                                       accelerator=f"{modifier}-M")
+
+        self.options_menu = tk.Menu(self.menubar, tearoff=False)
+        self.menu.add_cascade(menu=self.options_menu, label="Options")
+        self.menubar.add_cascade(menu=self.options_menu, label="Options")
+        self.options_menu.add_checkbutton(label="Repeat",
+                                          variable=self.repeat_album)
+
+        if platform.system() == "Darwin":
+            self.window_menu = tk.Menu(self.menubar, name='window')
+            self.menubar.add_cascade(menu=self.window_menu, label='Window')
+
+        self.help_menu = tk.Menu(self.menubar, tearoff=False)
+        self.menubar.add_cascade(menu=self.help_menu, label="Help")
         if platform.system() != "Darwin":
-            self.file_menu.add_command(label="Quit",
-                                       command=self.quit,
-                                       accelerator=f"{modifier}-Q")
-            self.help_menu = tk.Menu(self.menubar, tearoff=False)
-            self.menubar.add_cascade(menu=self.help_menu, label="Help")
             self.help_menu.add_command(
                 label="About",
                 command=lambda: HelpDialogue(self.master),
                 accelerator="F1")
 
-        if not self.hide_menubar:
+        if self.show_menubar:
             self.parent["menu"] = self.menubar
+
+        self.menu.add_separator()
+        self.menu.add_command(label="Quit",
+                              command=self.quit,
+                              accelerator=f"{modifier}-Q")
 
     def show_context_menu(self, event):
         try:
-            self.menubar.tk_popup(event.x_root, event.y_root)
+            self.menu.tk_popup(event.x_root, event.y_root)
         finally:
-            self.menubar.grab_release()
+            self.menu.grab_release()
 
     def change_menu_state(self, state):
         self.menubar.entryconfig("File", state=state)
@@ -928,7 +976,10 @@ class MainApplication(ttk.Frame):
         self.parent.bind("<W>", switch_to_first_image)
 
         # Mouse (global)
-        self.parent.bind("<Button-2>", self.show_context_menu)
+        if platform.system() == "Darwin":  # right mouse button on Mac is 2
+            self.parent.bind("<Button-2>", self.show_context_menu)
+        else:
+            self.parent.bind("<Button-3>", self.show_context_menu)
 
         # Mouse (specific widgets)
         self.canvas.bind("<Enter>", lambda e: self.add_arrows())
@@ -1129,7 +1180,7 @@ class MainApplication(ttk.Frame):
         self.tree.column('Length', width=c2_width)
         # Hack: For some reason the treeview colums do not stretch correctly
         # initially, so hardcode all column sizes
-        if self.fullscreen:
+        if self.fullscreen.get():
             size = self.parent.winfo_geometry().split("+")[0]
             width = int(size.split("x")[0])
             height = int(size.split("x")[1])
@@ -1306,7 +1357,7 @@ class MainApplication(ttk.Frame):
             if width < self.size[0]:
                 return
         width = self.size[0]
-        if self.fullscreen:
+        if self.fullscreen.get():
             tree_width = self.size[0] - self.size[1]
         else:
             tree_width = WIDTH - HEIGHT
@@ -1500,7 +1551,7 @@ class MainApplication(ttk.Frame):
         self.parent.geometry(f"{width}x{height}")
 
     def fit_to_slides(self, event=None):
-        if not self.fullscreen:
+        if not self.fullscreen.get():
             width = self.parent.winfo_width() - (WIDTH - HEIGHT)
             height = self.parent.winfo_height()
             if width > height:
@@ -1508,25 +1559,24 @@ class MainApplication(ttk.Frame):
             elif width < height:
                 self.parent.geometry(f"{width + (WIDTH - HEIGHT)}x{width}")
 
-    def toggle_hide_menubar(self, event=None):
-        self.hide_menubar = not self.hide_menubar
-        if self.hide_menubar:
-            self.parent["menu"] = ""
-        else:
+    def toggle_show_menubar(self, event=None):
+        if self.show_menubar.get():
             self.parent["menu"] = self.menubar
+        else:
+            self.parent["menu"] = ""
 
     def toggle_always_on_top(self, event=None):
-        self.parent.attributes('-topmost', not self.always_on_top)
-        self.always_on_top = not self.always_on_top
+        self.parent.attributes('-topmost', self.always_on_top.get())
 
     def toggle_fullscreen(self):
-        self.fullscreen = not self.fullscreen
-        self.columnconfigure(0, weight=int(not self.fullscreen))
-        self.columnconfigure(1, weight=int(self.fullscreen))
+        #self.fullscreen = not self.fullscreen
+        fullscreen = self.fullscreen.get()
+        self.columnconfigure(0, weight=int(not fullscreen))
+        self.columnconfigure(1, weight=int(fullscreen))
         #if self.fullscreen:
         #    self.parent.withdraw()
-        self.parent.attributes("-fullscreen", self.fullscreen)
-        if self.fullscreen:
+        self.parent.attributes("-fullscreen", fullscreen)
+        if fullscreen:
             self.update()
             self.update()
             #self.parent.deiconify()
