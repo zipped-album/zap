@@ -1564,6 +1564,30 @@ class MainApplication(ttk.Frame):
             self.parent["menu"] = self.menubar
         else:
             self.parent["menu"] = ""
+   #         self.show_menu_binding = self.parent.bind("<Alt_L>",
+   #                                                   self.toggle_temp_menubar)
+   #         self.temp_show_menubar = False
+
+   # def toggle_temp_menubar(self, event=None):
+   #     if not self.temp_show_menubar:
+   #         self.parent["menu"] = self.menubar
+   #         self.parent.unbind(self.show_menu_binding)
+   #         self.hide_menu_binding = self.parent.bind("<KeyRelease>",
+   #                                                   self.catch_alt_release)
+   #     else:
+   #         self.parent["menu"] = ""
+   #         self.parent.unbind(self.hide_menu_binding)
+   #         self.show_menu_binding = self.parent.bind("<Alt_L>",
+   #                                                   self.toggle_temp_menubar)
+   #         self.temp_show_menubar = False
+
+   # def catch_alt_release(self, event=None):
+   #     self.temp_show_menubar = True
+   #     self.parent.unbind(self.hide_menu_binding)
+   #     self.hide_menu_binding = self.parent.bind("<KeyRelease>",
+   #                                                   self.toggle_temp_menubar)
+
+
 
     def toggle_always_on_top(self, event=None):
         self.parent.attributes('-topmost', self.always_on_top.get())
