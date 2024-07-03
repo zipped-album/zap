@@ -487,7 +487,7 @@ class MainApplication(ttk.Frame):
             initialdir = os.path.split(self.loaded_album.filename)[0]
         else:
             initialdir = os.getcwd()
-        allowed_extensions = "*.zip *.zlbm"
+        allowed_extensions = ".zip .zlbm"
         filetypes = [("Zipped Album files", allowed_extensions),
                      ("All files", "*.*")]
         was_always_on_top = self.always_on_top.get()
@@ -786,9 +786,9 @@ class MainApplication(ttk.Frame):
                                            takefocus=0, state="disabled")
         self.playpause_button.grid(column=0, row=0, sticky="nesw")
 
-        slider_frame = ttk.Frame(frame_bottom, height=int(10 * SCALING))
+        slider_frame = ttk.Frame(frame_bottom, height=int(8 * SCALING))
         slider_frame.grid(column=1, row=0, sticky="ew", padx=PADDING/2)
-        self.style.configure("TProgressbar", period = 0, maxphase =0)
+        self.style.configure("TProgressbar", period=0, maxphase=0)
         self.playhead_slider = ttk.Progressbar(slider_frame,
                                                orient="horizontal",
                                                mode='determinate', length=100,
@@ -804,7 +804,7 @@ class MainApplication(ttk.Frame):
         self.playhead_label.grid(column=1, row=1, sticky="ns")
         self.playhead = None
 
-        slider_frame = ttk.Frame(frame_bottom, height=int(10 * SCALING))
+        slider_frame = ttk.Frame(frame_bottom, height=int(8 * SCALING))
         slider_frame.grid(column=2, row=0, sticky="ew", padx=PADDING/2)
         self.volume_slider = ttk.Progressbar(slider_frame,
                                              orient="horizontal",

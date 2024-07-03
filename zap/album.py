@@ -50,7 +50,7 @@ def _sort_images(images):
     back = []
     other = []
     for x in images:
-        parts = re.split(' |\_|\-|\.', os.path.splitext(x)[0])
+        parts = re.split(r' |\_|\-|\.', os.path.splitext(x)[0])
         if "back" in parts:
             back.append(x)
         elif any(x in parts for x in ("front", "cover", "folder")):
