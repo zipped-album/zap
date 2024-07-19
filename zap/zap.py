@@ -217,11 +217,14 @@ class TrackTooltip:
         im.close()
         label = tk.Label(self.tooltip_window, image=self.photo,
                          bg=COLOUR,
-                         borderwidth=0, highlightthickness = 0, padx=0, pady=0)
-        label.grid(row=0, column= 0, sticky="nw")
+                         borderwidth=0, highlightthickness=0, padx=0, pady=0)
+        label.grid(row=0, column=0, sticky="nw")
+        self.style.configure('TFrame',
+                             background=self.style.lookup('TFrame',
+                                                          'background'))
         self.frame = ttk.Frame(self.tooltip_window)
         self.frame.columnconfigure(0, minsize=200)
-        self.frame.grid(column=1, row=0, sticky="nesw")
+        self.frame.grid(row=0, column=1, sticky="nesw")
         try:
             title = "; ".join(track["tags"]["title"])
         except:
@@ -273,6 +276,7 @@ class TrackTooltip:
             pass
 
         self.tooltip_window.update()
+        self.tooltip_window.attributes('-topmost', 1)
         try:
             self.tooltip_window.lift()  # work around bug in Tk 8.5.18+
         except:
