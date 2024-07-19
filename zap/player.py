@@ -96,7 +96,9 @@ class FFmpegSource(FFmpegSource):
         self._file = None
         self._memory_file = None
 
-        self._file = ffmpeg_open_filename(asbytes_filename(filename))
+        encoded_filename = filename.encode(sys.getfilesystemencoding())
+
+        self._file = ffmpeg_open_filename(encoded_filename)
         if not self._file:
             raise FFmpegException('Could not open "{0}"'.format(filename))
 
@@ -227,7 +229,10 @@ class FFmpegSource(FFmpegSource):
             self.seek(0.0)
 
     def __del__(self):
-        super().__del__()
+        try:
+            super().__del__()
+        except:
+            pass
         if platform.system() == "Windows" and self._tempfile:
             os.remove(self._tempfile.name)
 
