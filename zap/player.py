@@ -275,10 +275,7 @@ class AudioPlayer:
     @property
     def buffer_size(self):
         if self.is_playing:
-            if self.audio_driver == "DirectSoundDriver":
-                return self._player._audio_player._buffer_size
-            elif self.audio_driver == "OpenALDriver":
-                return self._player._audio_player.ideal_buffer_size
+            return self._player._audio_player._buffered_data_ideal_size
 
     @property
     def buffer_time(self):
@@ -371,8 +368,8 @@ class AudioPlayer:
             self.update()
         self._player.seek(time)
         self.update()
-        self._player.seek(time)
-        self.update()
+        #self._player.seek(time)
+        #self.update()
         if playing:
             self._player.play()
             self.update()

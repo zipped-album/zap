@@ -1266,6 +1266,8 @@ class MainApplication(ttk.Frame):
             # Update playhead after running out of audio data
             while True:
                 current_time = self.now()
+                if buffer_time is None:
+                    break
                 max_time = min(dur - (pos - tickspeed), 2 * buffer_time)
                 if current_time - start >= max_time:
                     break
