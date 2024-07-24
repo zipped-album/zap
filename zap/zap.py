@@ -276,8 +276,8 @@ class TrackTooltip:
             pass
 
         self.tooltip_window.update()
-        self.tooltip_window.attributes('-topmost', 1)
         try:
+            self.tooltip_window.attributes('-topmost', 1)
             self.tooltip_window.lift()  # work around bug in Tk 8.5.18+
         except:
             pass
@@ -1211,7 +1211,7 @@ class MainApplication(ttk.Frame):
         if len(set([type(x) for x in self.loaded_album.tracklist])) == 1:
             self.player = GaplessAudioPlayer()
         else:
-            self.player = GaplessAudioPlayer()  #AudioPlayer()
+            self.player = AudioPlayer()
 
         def next_gapless():
             if self.selected_track_id + 1 < len(self.loaded_album.tracklist):
@@ -1225,6 +1225,8 @@ class MainApplication(ttk.Frame):
                 # Update GUI after running out of audio data
                 while True:
                     current_time = self.now()
+                    if buffer_time is None:
+                        break
                     max_time = min(dur - (pos - tickspeed), 2 * buffer_time)
                     if current_time - start >= max_time:
                         break

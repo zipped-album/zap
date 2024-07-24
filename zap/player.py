@@ -30,6 +30,26 @@ from pyglet.media.codecs.ffmpeg import *
 from .__meta__ import __author__, __version__
 
 
+# Hack to fix current bug in Pyglet >2.0.10
+# (https://github.com/pyglet/pyglet/issues/1175#issuecomment-2241332603)
+if pyglet.__version__ > "2.0.10":
+    try:
+        from pyglet.media.codecs import PreciseStreamingSource
+
+        def _saf(s, f): s._source.audio_format = f
+        def _svf(s, f): s._source.video_format = f
+        def _sin(s, i): s._source.info = i
+        PreciseStreamingSource.audio_format = property(
+            lambda s: s._source.audio_format, _saf)
+        PreciseStreamingSource.video_format = property(
+            lambda s: s._source.video_format, _svf)
+        PreciseStreamingSource.info = property(lambda s: s._source.info, _sin)
+        PreciseStreamingSource.duration = property(
+            lambda s: s._source.duration)
+    except ImportError:
+        pass
+
+
 class FFmpegSource(FFmpegSource):
     """Modified FFmpegSource with some fixes.
 
@@ -257,6 +277,7 @@ class AudioPlayer:
         self._player = pyglet.media.Player()
         self._on_eos = None
         self._clear_on_queue = True
+        self.offset = 0
         print(f"Audio playback: {self.audio_driver}")
 
     def __del__(self):
@@ -275,8 +296,13 @@ class AudioPlayer:
     @property
     def buffer_size(self):
         if self.is_playing:
-            return self._player._audio_player._buffered_data_ideal_size
-
+            if pyglet.__version__ <= "2.0.10":
+                if self.audio_driver == "DirectSoundDriver":
+                    return self._player._audio_player._buffer_size
+                elif self.audio_driver == "OpenALDriver":
+                    return self._player._audio_player.ideal_buffer_size
+            else:
+                return self._player._audio_player._buffered_data_ideal_size
     @property
     def buffer_time(self):
         if self.is_playing:
@@ -287,7 +313,7 @@ class AudioPlayer:
 
     @property
     def time(self):
-        return self._player.time
+        return self._player.time - self.offset
 
     @property
     def volume(self):
@@ -368,8 +394,9 @@ class AudioPlayer:
             self.update()
         self._player.seek(time)
         self.update()
-        #self._player.seek(time)
-        #self.update()
+        if pyglet.__version__ <= "2.0.10":
+            self._player.seek(time)
+            self.update()
         if playing:
             self._player.play()
             self.update()
@@ -476,8 +503,9 @@ class GaplessAudioPlayer(AudioPlayer):
             if time > self._current_duration - 0.2:
                 time = self._current_duration - 0.2
             if self.time < self._current_duration - 0.2:
-                current_duration = self._current_duration
+                #current_duration = self._current_duration
                 super().seek(time)
+                self.offset = 0
 
     def update(self):
         """Update the audio player."""
@@ -489,8 +517,9 @@ class GaplessAudioPlayer(AudioPlayer):
                     self._on_gapless_eos()
                 if self.time > self._current_duration:
                     if len(self._sourcegroup._sources) > 0:
-                        self._player._timer.set_time(self.time - \
-                                                     self._current_duration)
+                        self.offset += self._current_duration
+                        #self._player._timer.set_time(self.time - \
+                                                     #self._current_duration)
                         self._current_duration = \
                             self._sourcegroup._sources[0].duration
                     else:
