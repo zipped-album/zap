@@ -1571,7 +1571,7 @@ class MainApplication(ttk.Frame):
                 self.parent.geometry(f"{width + (WIDTH - HEIGHT)}x{width}")
 
     def toggle_show_menubar(self, event=None):
-        if event is not None: # if triggered by keybinding, update checkbox
+        if event is not None:  # if triggered by keybinding, update checkbox
             self.show_menubar.set(not self.show_menubar.get())
         if self.show_menubar.get():
             self.parent["menu"] = self.menubar
@@ -1607,7 +1607,7 @@ class MainApplication(ttk.Frame):
         self.parent.attributes('-topmost', self.always_on_top.get())
 
     def toggle_fullscreen(self, event=None):
-        if event is not None:
+        if event is not None:  # if triggered by keybinding, update checkbox
             self.fullscreen.set(not self.fullscreen.get())
         #self.fullscreen = not self.fullscreen
         fullscreen = self.fullscreen.get()
