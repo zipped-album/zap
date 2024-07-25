@@ -144,8 +144,9 @@ class ResizingCanvas(tk.Canvas):
 
 
 class TrackTooltip:
-    def __init__(self, treeview):
+    def __init__(self, treeview, app_always_on_top):
         self.treeview = treeview
+        self.app_always_on_top = app_always_on_top
         self.album = None
         self.tooltip_window = None
         self.tooltip_x = self.tooltip_y = 0
@@ -277,7 +278,8 @@ class TrackTooltip:
 
         self.tooltip_window.update()
         try:
-            self.tooltip_window.attributes('-topmost', 1)
+            self.tooltip_window.attributes('-topmost',
+                                           self.app_always_on_top.get())
             self.tooltip_window.lift()  # work around bug in Tk 8.5.18+
         except:
             pass
@@ -776,7 +778,7 @@ class MainApplication(ttk.Frame):
         self.tree_vscrollbar.grid(row=0, column=1, sticky='nsew')
         self.tree.configure(yscrollcommand=self.tree_vscrollbar.set)
 
-        self.track_tooltip = TrackTooltip(self.tree)
+        self.track_tooltip = TrackTooltip(self.tree, self.always_on_top)
 
         frame_bottom = ttk.Frame(frame_right)
         frame_bottom.grid(column=0, row=2, sticky="nesw")

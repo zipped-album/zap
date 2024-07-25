@@ -503,7 +503,6 @@ class GaplessAudioPlayer(AudioPlayer):
             if time > self._current_duration - 0.2:
                 time = self._current_duration - 0.2
             if self.time < self._current_duration - 0.2:
-                #current_duration = self._current_duration
                 super().seek(time)
                 self.offset = 0
 
