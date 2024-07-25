@@ -853,9 +853,9 @@ class MainApplication(ttk.Frame):
                          lambda e: self.set_view_preset("large"))
         self.parent.bind(f"<{modifier}-Key-0>", self.fit_to_slides)
         if platform.system() != "Darwin":
-            self.parent.bind("<F11>", self.toggle_fullscreen)
             self.parent.bind(f"<{modifier}-m>", self.toggle_show_menubar)
-            self.parent.bind("<F1>", lambda e: HelpDialogue(self.master))
+        self.parent.bind("<F11>", self.toggle_fullscreen)
+        self.parent.bind("<F1>", lambda e: HelpDialogue(self.master))
         self.parent.bind(f"<{modifier}-q>", lambda e: self.quit())
 
         self._last_increment_track = self.now()
