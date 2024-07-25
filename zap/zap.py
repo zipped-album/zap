@@ -854,6 +854,8 @@ class MainApplication(ttk.Frame):
         self.parent.bind(f"<{modifier}-Key-0>", self.fit_to_slides)
         if platform.system() != "Darwin":
             self.parent.bind("<F11>", lambda e: self.toggle_fullscreen())
+            self.parent.bind("<{modifier}-m>",
+                             lambda e: self.toggle_show_menubar())
             self.parent.bind("<F1>", lambda e: HelpDialogue(self.master))
         self.parent.bind(f"<{modifier}-q>", lambda e: self.quit())
 
