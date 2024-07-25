@@ -615,9 +615,9 @@ class MainApplication(ttk.Frame):
                                        accelerator="F11")
         if platform.system() == "Darwin":
             self.view_menu.entryconfig("Show menubar", state="disabled")
-        #else:
-        #    self.view_menu.entryconfig("Show menubar",
-        #                               accelerator=f"{modifier}-M")
+        else:
+            self.view_menu.entryconfig("Show menubar",
+                                       accelerator=f"{modifier}-M")
 
         self.options_menu = tk.Menu(self.menubar, tearoff=False)
         self.menu.add_cascade(menu=self.options_menu, label="Options")
