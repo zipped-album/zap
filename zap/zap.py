@@ -853,9 +853,8 @@ class MainApplication(ttk.Frame):
                          lambda e: self.set_view_preset("large"))
         self.parent.bind(f"<{modifier}-Key-0>", self.fit_to_slides)
         if platform.system() != "Darwin":
-            self.parent.bind("<F11>", lambda e: self.toggle_fullscreen())
-            self.parent.bind(f"<{modifier}-m>",
-                             lambda e: self.toggle_show_menubar())
+            self.parent.bind("<F11>", self.toggle_fullscreen)
+            self.parent.bind(f"<{modifier}-m>", self.toggle_show_menubar)
             self.parent.bind("<F1>", lambda e: HelpDialogue(self.master))
         self.parent.bind(f"<{modifier}-q>", lambda e: self.quit())
 
@@ -1572,10 +1571,13 @@ class MainApplication(ttk.Frame):
                 self.parent.geometry(f"{width + (WIDTH - HEIGHT)}x{width}")
 
     def toggle_show_menubar(self, event=None):
+        if event is not None: # if triggered by keybinding, update checkbox
+            self.show_menubar.set(not self.show_menubar.get())
         if self.show_menubar.get():
             self.parent["menu"] = self.menubar
         else:
             self.parent["menu"] = ""
+        self.update()
    #         self.show_menu_binding = self.parent.bind("<Alt_L>",
    #                                                   self.toggle_temp_menubar)
    #         self.temp_show_menubar = False
@@ -1604,7 +1606,9 @@ class MainApplication(ttk.Frame):
     def toggle_always_on_top(self, event=None):
         self.parent.attributes('-topmost', self.always_on_top.get())
 
-    def toggle_fullscreen(self):
+    def toggle_fullscreen(self, event=None):
+        if event is not None:
+            self.fullscreen.set(not self.fullscreen.get())
         #self.fullscreen = not self.fullscreen
         fullscreen = self.fullscreen.get()
         self.columnconfigure(0, weight=int(not fullscreen))
