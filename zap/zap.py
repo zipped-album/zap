@@ -373,7 +373,14 @@ class DownloadFFmpegDialogue:
                                 "downloaded successfully!")
         except Exception as e:
             try:
-                if e.status == 404:
+                if not hasattr(e, "status"):
+                    messagebox.showerror(
+                        title="Connection error",
+                        message="The connection to the download location has "
+                        "failed with error:\n\n"
+                        f"{e.reason}")
+
+                elif e.status == 404:
                     self.destroy()
                     platform = get_platform()
                     messagebox.showerror(title="No download available",
@@ -383,6 +390,7 @@ class DownloadFFmpegDialogue:
                                          "Please manually install FFmpeg "
                                          "libraries (version 4) on your "
                                          "system.")
+
                 else:
                     raise Exception
             except Exception:
@@ -655,7 +663,10 @@ class MainApplication(ttk.Frame):
         self.menubar.entryconfig("File", state=state)
         self.menubar.entryconfig("Options", state=state)
         if platform.system() == "Darwin":
-            self.menubar.entryconfig("Python", state=state)
+            try:
+                self.menubar.entryconfig("Python", state=state)
+            except:
+                pass
             self.menubar.entryconfig("View ", state=state)
         else:
             self.menubar.entryconfig("View", state=state)

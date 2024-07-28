@@ -2,11 +2,17 @@ import os
 import sys
 import platform
 import sysconfig
+import ssl
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError
 from tempfile import TemporaryFile
 from zipfile import ZipFile
 from shutil import copyfileobj
+
+try:
+    import certifi
+except ImportError:
+    certifi = None
 
 
 def _f(q):
@@ -113,7 +119,12 @@ def download_ffmpeg(progress=None):
             filename = f"ffmpeg{version}-{platform}.zip"
             url = f"{url_base}/{filename}"
             r = Request(url, headers={"Accept-Encoding": "gzip; deflate"})
-            u = urlopen(r)
+            ctx = ssl.create_default_context()
+            if certifi is not None:
+                ctx.load_verify_locations(cafile=certifi.where())
+                if (cafile := os.environ.get('SSL_CERT_FILE')) is not None:
+                    ctx.load_verify_locations(cafile=cafile)
+            u = urlopen(r, context=ctx)
             success = True
         except Exception as e:
             if version == 4:
