@@ -10,12 +10,14 @@ Zipped Album Player.
 import os
 import io
 import gc
+import re
 import sys
 import copy
 import time
 import random
 import colorsys
 import platform
+import configparser
 import dateutil.parser
 try:
     import tkinter as tk
@@ -114,6 +116,45 @@ def get_shaded_colour(rgb, amount):
         colour = f"#{r:02X}{g:02X}{b:02X}"
         return colour
 
+def is_venv():
+    """Return if ZAP is running in a virtual environment.
+
+    Returns
+    -------
+    venv : bool
+        whether or not running in virtual environment
+
+    Note
+    ----
+    Only covers virual environments created with `pipx`, `virtualenv`, `venv`,
+    and `pyvnenv`.
+
+    """
+
+    real_prefix = getattr(sys, "real_prefix", None)
+    base_prefix = getattr(sys, "base_prefix", sys.prefix)
+
+    return (base_prefix or real_prefix) != sys.prefix
+
+def get_settings_folder():
+    """Return ZAP settings folder
+
+    If running in a virtual environment, the ZAP settings folder is
+    `/path/to/environment/.zap/`, otherwise it is `$HOME/.zap`.
+
+    Returns
+    -------
+    settings_folder : str
+        the ZAP settings folder
+
+    """
+
+    home = os.getenv('USERPROFILE')
+    if home is None:
+        home = os.getenv('HOME')
+    if is_venv():
+        home = sys.prefix
+    return os.path.join(home, ".zap")
 
 class AutoScrollbar(ttk.Scrollbar):
     def set(self, lo, hi):
@@ -345,7 +386,9 @@ class DownloadFFmpegDialogue:
 
         top.protocol("WM_DELETE_WINDOW", lambda: None)
 
-        root_x = int(master.parent.geometry().split("+", 1)[-1].split("+")[0])
+        size, x, y  = re.split(r'(?=[+-]\d+)', master.parent.geometry())
+
+        root_x = int(x)
         top.geometry(f"+%d+%d" % (root_x, master.winfo_rooty()))
 
         top.transient(self.master)
@@ -414,15 +457,29 @@ class MainApplication(ttk.Frame):
         ttk.Frame.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.style = ttk.Style()
+        self.config = configparser.ConfigParser()
+        self.load_config()
+        #geometry = self.config.get("GENERAL", "window_geometry",
+        #                           fallback=f"{WIDTH}x{HEIGHT}+0+0")
+        #size, pos_x, pos_y = re.split(r'(?=[+-]\d+)', geometry)
+        #width, height = [int(x) for x in size.split("x")]
+        #self.size = [width, height]
+        #self._last_geometry = geometry
         self.size = [WIDTH, HEIGHT]
+        self._last_geometry = "{WIDTH}x{HEIGHT}+0+0"
         self.repeat_album = tk.BooleanVar()
-        self.repeat_album.set(False)
+        self.repeat_album.set(self.config.getboolean("PLAYBACK", "repeat",
+                                                    fallback=False))
         self.show_menubar = tk.BooleanVar()
-        self.show_menubar.set(True)
+        self.show_menubar.set(self.config.getboolean("VIEW", "show_menubar",
+                                                     fallback=True))
         self.always_on_top = tk.BooleanVar()
-        self.always_on_top.set(False)
+        self.always_on_top.set(self.config.getboolean("VIEW", "always_on_top",
+                                                      fallback=False))
         self.fullscreen = tk.BooleanVar()
-        self.fullscreen.set(False)
+        self.fullscreen.set(self.config.getboolean("VIEW", "fullscreen",
+                                                   fallback=False))
+        self.loaded_album = None
         self.create_menu()
         self.create_widgets()
         self.remove_arrows()
@@ -430,13 +487,19 @@ class MainApplication(ttk.Frame):
         self.columnconfigure(1, weight=0)
         self.rowconfigure(0, weight=1)
         #self.create_bindings()
-        self.loaded_album = None
         self.current_image = None
         self.selected_track_id = None
         self.playing_track_id = None
         self.resize_after_id = None
         self.last_update_player = 0
         self.now = time.monotonic
+
+        self._last_increment_track = self.now()
+
+        self.toggle_show_menubar()
+        self.toggle_always_on_top()
+        if self.fullscreen.get():
+            self.toggle_fullscreen()
 
         def update_player():
             try:
@@ -530,6 +593,25 @@ class MainApplication(ttk.Frame):
             except:
                 print("Unknown error")
 
+    def load_config(self):
+        config_file = os.path.join(get_settings_folder(), "config")
+        try:
+            if os.path.isfile(config_file):
+                self.config.read(config_file)
+        except:
+            pass
+
+    def write_config(self):
+        settings_folder = get_settings_folder()
+        config_file = os.path.join(settings_folder, "config")
+        try:
+            if not os.path.isdir(settings_folder):
+                os.makedirs(get_settings_folder())
+            with open(config_file, 'w') as f:
+                self.config.write(f)
+        except:
+            pass
+
     def create_menu(self):
         self.menu = tk.Menu(self.parent, tearoff=False)  # right-click menu
         self.menubar = tk.Menu(self.parent, tearoff=False)  # menubar
@@ -553,27 +635,40 @@ class MainApplication(ttk.Frame):
             view_menu_label = "View"
 
         self.menu.add_separator()
-        self.menu.add_command(label="Open...",
-                              command=self._open_album,
-                              accelerator=f"{modifier}-O")
-        self.menu.add_command(label="Open exact...",
-                              command=lambda: self._open_album(exact=True))
-        self.menu.add_separator()
-        self.menu.add_command(label="Create...",
-                              command=self._create_album)
-        self.menu.add_separator()
+        #self.menu.add_command(label="Open...",
+        #                      command=self._open_album,
+        #                      accelerator=f"{modifier}-O")
+        #self.menu.add_command(label="Open exact...",
+        #                      command=lambda: self._open_album(exact=True))
+        #self.menu.add_separator()
+        #self.menu.add_command(label="Create...",
+        #                      command=self._create_album)
+        #self.menu.add_separator()
 
-        self.file_menu = tk.Menu(self.menubar, tearoff=False)
-        self.menubar.add_cascade(menu=self.file_menu, label="File")
+        self.file_menu = tk.Menu(self.menu, tearoff=False)
+        self.file_menu_bar = tk.Menu(self.menubar, tearoff=False)
+        self.menu.add_cascade(menu=self.file_menu, label="File")
+        self.menubar.add_cascade(menu=self.file_menu_bar, label="File")
 
-        self.file_menu.add_command(label="Open...",
-                                   command=self._open_album,
-                                   accelerator=f"{modifier}-O")
-        self.file_menu.add_command(label="Open exact...",
-                                   command=lambda: self._open_album(exact=True))
+        file_open = {"label": "Open...",
+                     "command": self._open_album,
+                     "accelerator" :f"{modifier}-O"}
+        self.file_menu.add_command(**file_open)
+        self.file_menu_bar.add_command(**file_open)
+
+        file_open_exact = {"label" :"Open exact...",
+                           "command": lambda: self._open_album(exact=True)}
+        self.file_menu.add_command(**file_open_exact)
+        self.file_menu_bar.add_command(**file_open_exact)
+
         self.file_menu.add_separator()
-        self.file_menu.add_command(label="Create...",
-                                   command=self._create_album)
+        self.file_menu_bar.add_separator()
+
+        file_create = {"label": "Create...",
+                       "command": self._create_album}
+        self.file_menu.add_command(**file_create)
+        self.file_menu_bar.add_command(**file_create)
+
         if platform.system() != "Darwin":
             self.file_menu.add_separator()
             self.file_menu.add_command(label="Quit",
@@ -605,9 +700,63 @@ class MainApplication(ttk.Frame):
             label="Large",
             command=lambda: self.set_view_preset("large"),
             accelerator=f"{modifier}-5")
+        self.view_presets_menu.add_command(
+            label="Custom 1",
+            command=lambda: self.set_view_preset("custom1"),
+            accelerator=f"{modifier}-6")
+        self.view_presets_menu.add_command(
+            label="Custom 2",
+            command=lambda: self.set_view_preset("custom2"),
+            accelerator=f"{modifier}-7")
+        self.view_presets_menu.add_command(
+            label="Custom 3",
+            command=lambda: self.set_view_preset("custom3"),
+            accelerator=f"{modifier}-8")
+        self.view_presets_menu.add_command(
+            label="Custom 4",
+            command=lambda: self.set_view_preset("custom4"),
+            accelerator=f"{modifier}-9")
+        for x in range(1,5):
+            if not self.config.has_option("VIEW", f"preset_custom{x}"):
+                self.view_presets_menu.entryconfig(f"Custom {x}",
+                                                   state="disabled")
+        self.view_presets_menu.add_separator()
+        self.view_presets_menu.add_command(
+            label="Store current size as Custom 1",
+            command=lambda: self.store_custom_view_preset(1))
+        self.view_presets_menu.add_command(
+            label="Store current size as Custom 2",
+            command=lambda: self.store_custom_view_preset(2))
+        self.view_presets_menu.add_command(
+            label="Store current size as Custom 3",
+            command=lambda: self.store_custom_view_preset(3))
+        self.view_presets_menu.add_command(
+            label="Store current size as Custom 4",
+            command=lambda: self.store_custom_view_preset(4))
+
         self.view_menu.add_command(label="Fit to slides",
                                    command=self.fit_to_slides,
                                    accelerator=f"{modifier}-0")
+        self.view_menu.add_separator()
+        self.view_menu.add_command(label="Show next slide",
+                                   command=lambda: self.switch_image(1),
+                                   accelerator=f"Shift-Right")
+        self.view_menu.add_command(label="Show previous slide",
+                                   command=lambda: self.switch_image(-1),
+                                   accelerator=f"Shift-Left")
+        self.view_menu.add_command(label="Show first slide",
+                                   command=lambda: self.switch_image(
+                                       -9999),
+                                   accelerator=f"Shift-w")
+        if self.loaded_album is None:
+            self.view_menu.entryconfig("Show next slide", state="disabled")
+            self.view_menu.entryconfig("Show previous slide", state="disabled")
+            self.view_menu.entryconfig("Show first slide", state="disabled")
+        else:
+            self.view_menu.entryconfig("Show next slide", state="normal")
+            self.view_menu.entryconfig("Show previous slide", state="normal")
+            self.view_menu.entryconfig("Show first slide", state="normal")
+
         self.view_menu.add_separator()
         self.view_menu.add_checkbutton(
             label="Show menubar",
@@ -627,11 +776,83 @@ class MainApplication(ttk.Frame):
             self.view_menu.entryconfig("Show menubar",
                                        accelerator=f"{modifier}-M")
 
-        self.options_menu = tk.Menu(self.menubar, tearoff=False)
-        self.menu.add_cascade(menu=self.options_menu, label="Options")
-        self.menubar.add_cascade(menu=self.options_menu, label="Options")
-        self.options_menu.add_checkbutton(label="Repeat",
-                                          variable=self.repeat_album)
+        self.playback_menu = tk.Menu(self.menubar, tearoff=False)
+        self.menu.add_cascade(menu=self.playback_menu, label="Playback")
+        self.menubar.add_cascade(menu=self.playback_menu, label="Playback")
+        self.playback_menu.add_command(
+                label="Play/Pause",
+                command=lambda: self.playpause(),
+                accelerator="Space")
+        self.playback_menu.add_command(
+                label="Select next track",
+                command=lambda: self.increment_track(1),
+                accelerator="Down")
+        self.playback_menu.add_command(
+                label="Select previous track",
+                command=lambda: self.increment_track(-1),
+                accelerator="Up")
+        self.playback_menu.add_command(
+                label="Select first track",
+                command=lambda: self.increment_track(-9999),
+                accelerator="Home")
+        self.playback_menu.add_command(
+                label="Select last track",
+                command=lambda: self.increment_track(9999),
+                accelerator="End")
+        self.playback_menu.add_separator()
+        self.playback_menu.add_command(
+                label="Seek forward",
+                command=lambda: self.increment_playhead(1),
+                accelerator="Right")
+        self.playback_menu.add_command(
+                label="Seek backward",
+                command=lambda: self.increment_playhead(-1),
+                accelerator="Left")
+        self.playback_menu.add_command(
+                label="Seek to beginning",
+                command=lambda: self.increment_playhead(-100),
+                accelerator="w")
+        self.playback_menu.add_separator()
+        self.playback_menu.add_command(
+                label="Decrease volume",
+                command=lambda: self.increment_volume(-5),
+                accelerator="Shift-Down")
+        self.playback_menu.add_command(
+                label="Increase volume",
+                command=lambda: self.increment_volume(5),
+                accelerator="Shift-Up")
+        if self.loaded_album is None:
+            self.playback_menu.entryconfig("Play/Pause", state="disabled")
+            self.playback_menu.entryconfig("Select next track",
+                                           state="disabled")
+            self.playback_menu.entryconfig("Select previous track",
+                                           state="disabled")
+            self.playback_menu.entryconfig("Select first track",
+                                           state="disabled")
+            self.playback_menu.entryconfig("Select last track",
+                                           state="disabled")
+            self.playback_menu.entryconfig("Seek forward", state="disabled")
+            self.playback_menu.entryconfig("Seek backward", state="disabled")
+            self.playback_menu.entryconfig("Seek to beginning",
+                                           state="disabled")
+        else:
+            self.playback_menu.entryconfig("Play/Pause", state="normal")
+            self.playback_menu.entryconfig("Select next track",
+                                           state="normal")
+            self.playback_menu.entryconfig("Select previous track",
+                                           state="normal")
+            self.playback_menu.entryconfig("Select first track",
+                                           state="normal")
+            self.playback_menu.entryconfig("Select last track",
+                                           state="normal")
+            self.playback_menu.entryconfig("Seek forward", state="normal")
+            self.playback_menu.entryconfig("Seek backward", state="normal")
+            self.playback_menu.entryconfig("Seek to beginning",
+                                           state="normal")
+        self.playback_menu.add_separator()
+        self.playback_menu.add_checkbutton(label="Repeat",
+                                           variable=self.repeat_album,
+                                           command=self.toggle_repeat_album)
 
         if platform.system() == "Darwin":
             self.window_menu = tk.Menu(self.menubar, name='window')
@@ -656,21 +877,24 @@ class MainApplication(ttk.Frame):
     def show_context_menu(self, event):
         try:
             self.menu.tk_popup(event.x_root, event.y_root)
+        except:
+            pass
         finally:
-            self.menu.grab_release()
+            try:
+                self.menu.grab_release()
+            except:
+                pass
 
     def change_menu_state(self, state):
         self.menubar.entryconfig("File", state=state)
-        self.menubar.entryconfig("Options", state=state)
+        self.menubar.entryconfig("Playback", state=state)
+        self.menubar.entryconfig("View ", state=state)
+        self.menubar.entryconfig("Help", state=state)
         if platform.system() == "Darwin":
             try:
                 self.menubar.entryconfig("Python", state=state)
             except:
                 pass
-            self.menubar.entryconfig("View ", state=state)
-        else:
-            self.menubar.entryconfig("View", state=state)
-            self.menubar.entryconfig("Help", state=state)
 
     def create_widgets(self):
         """Contains all widgets in main application."""
@@ -862,6 +1086,15 @@ class MainApplication(ttk.Frame):
                          lambda e: self.set_view_preset("default"))
         self.parent.bind(f"<{modifier}-Key-5>",
                          lambda e: self.set_view_preset("large"))
+        self.parent.bind(f"<{modifier}-Key-6>",
+                         lambda e: self.set_view_preset("custom1"))
+        self.parent.bind(f"<{modifier}-Key-7>",
+                         lambda e: self.set_view_preset("custom2"))
+        self.parent.bind(f"<{modifier}-Key-8>",
+                         lambda e: self.set_view_preset("custom3"))
+        self.parent.bind(f"<{modifier}-Key-9>",
+                         lambda e: self.set_view_preset("custom4"))
+
         self.parent.bind(f"<{modifier}-Key-0>", self.fit_to_slides)
         if platform.system() != "Darwin":
             self.parent.bind(f"<{modifier}-m>", self.toggle_show_menubar)
@@ -869,39 +1102,10 @@ class MainApplication(ttk.Frame):
         self.parent.bind("<F1>", lambda e: HelpDialogue(self.master))
         self.parent.bind(f"<{modifier}-q>", lambda e: self.quit())
 
-        self._last_increment_track = self.now()
-        def increment_track(step):
-            selected_track_id = self.selected_track_id + step
-            if 0 <= selected_track_id < len(self.loaded_album.tracklist):
-                if str(self.playpause_button["state"]) == "disabled":
-                    return
-                play_next = False
-                if self.playing_track_id is not None:
-                    if self.now() - self._last_increment_track < 0.5:
-                        return
-                    self._last_increment_track = self.now()
-                    self.pause()
-                    play_next = True
-                selected_track_id = self.selected_track_id + step
-                self.tree.selection_set([str(selected_track_id)])
-                self.tree.focus(str(selected_track_id))
-                self.tree.see(str(selected_track_id))
-                self.selected_track_id = selected_track_id
-                self.load_track()
-                #self.parent.update()
-                self.player.clear_on_queue = True
-                self.player.seek(0.0)
-                if play_next:
-                    self.play()
-
-        self.parent.bind("<Down>", lambda e: increment_track(1))
-        self.parent.bind("j", lambda e: increment_track(1))
-        self.parent.bind("<Up>", lambda e: increment_track(-1))
-        self.parent.bind("k", lambda e: increment_track(-1))
-
-        def goto_first_track(e):
-            if self.selected_track_id not in (None, 0):
-                increment_track(-self.selected_track_id)
+        self.parent.bind("<Down>", lambda e: self.increment_track(1))
+        self.parent.bind("j", lambda e: self.increment_track(1))
+        self.parent.bind("<Up>", lambda e: self.increment_track(-1))
+        self.parent.bind("k", lambda e: self.increment_track(-1))
 
         self._first_g_key_pressed = False
         self._first_g_key_time = self.now()
@@ -910,37 +1114,22 @@ class MainApplication(ttk.Frame):
             if self.selected_track_id not in (None, 0):
                 if self._first_g_key_pressed:
                     if self.now() - self._first_g_key_time < 1:
-                        increment_track(-self.selected_track_id)
-                        self._first_g_key_pressed = False
+                        self.increment_track(-self.selected_track_id)
+                    self._first_g_key_pressed = False
                 else:
                     self._first_g_key_pressed = True
                 self._first_g_key_time = self.now()
 
-        self.parent.bind("<Home>", goto_first_track)
+        self.parent.bind("<Home>", lambda e: self.increment_track(-9999))
         self.parent.bind("<g>", goto_first_track_vim)
 
-        def goto_last_track(e):
-            length = len(self.loaded_album.tracklist) - 1
-            if self.selected_track_id not in (None, length):
-                increment_track(length - self.selected_track_id)
+        self.parent.bind("<End>", lambda e: self.increment_track(9999))
+        self.parent.bind("<G>", lambda e: self.increment_track(9999))
 
-        self.parent.bind("<End>", goto_last_track)
-        self.parent.bind("<G>", goto_last_track)
-
-        def increment_playhead(step):
-            if self.loaded_album is not None:
-                if str(self.playpause_button["state"]) == "disabled":
-                    return
-                track = self.loaded_album.tracklist[self.selected_track_id]
-                new_playhead = self.playhead + step
-                pos = track["streaminfo"]["duration"] / 100 * new_playhead
-                self.playhead = new_playhead
-                self.player.seek(pos)
-
-        self.parent.bind(f"<Right>", lambda e: increment_playhead(1))
-        self.parent.bind("l", lambda e: increment_playhead(1))
-        self.parent.bind("<Left>", lambda e: increment_playhead(-1))
-        self.parent.bind("h", lambda e: increment_playhead(-1))
+        self.parent.bind(f"<Right>", lambda e: self.increment_playhead(1))
+        self.parent.bind("l", lambda e: self.increment_playhead(1))
+        self.parent.bind("<Left>", lambda e: self.increment_playhead(-1))
+        self.parent.bind("h", lambda e: self.increment_playhead(-1))
 
         def seek_to_beginning(e):
             if self.loaded_album is not None:
@@ -949,16 +1138,13 @@ class MainApplication(ttk.Frame):
                 self.playhead = 0
                 self.player.seek(0.0)
 
-        self.parent.bind("0", seek_to_beginning)
-        self.parent.bind("<w>", seek_to_beginning)
+        self.parent.bind("0", lambda e: self.increment_playhead(-100))
+        self.parent.bind("<w>", lambda e: self.increment_playhead(-100))
 
-        def increment_volume(step):
-            self.volume += step
-
-        self.parent.bind(f"<Shift-Up>", lambda e: increment_volume(1))
-        self.parent.bind(f"<K>", lambda e: increment_volume(1))
-        self.parent.bind(f"<Shift-Down>", lambda e: increment_volume(-1))
-        self.parent.bind(f"<J>", lambda e: increment_volume(-1))
+        self.parent.bind(f"<Shift-Up>", lambda e: self.increment_volume(5))
+        self.parent.bind(f"<K>", lambda e: self.increment_volume(5))
+        self.parent.bind(f"<Shift-Down>", lambda e: self.increment_volume(-5))
+        self.parent.bind(f"<J>", lambda e: self.increment_volume(-5))
 
         def playpause():
             if hasattr(self, "player"):
@@ -975,23 +1161,14 @@ class MainApplication(ttk.Frame):
         self.parent.bind("<Return>", lambda e: playpause())
         self.parent.bind("<space>", lambda e: playpause())
 
-        def switch_image(step):
-            if self.current_image is not None:
-                new_image = self.current_image + step
-                if 0 <= new_image < self.loaded_album.nr_of_slides:
-                    self.show_image(new_image)
-
-        self.parent.bind(f"<Shift-Right>", lambda e: switch_image(1))
-        self.parent.bind(f"<L>", lambda e: switch_image(1))
-        self.parent.bind(f"<Shift-Left>", lambda e: switch_image(-1))
-        self.parent.bind(f"<H>", lambda e: switch_image(-1))
-
-        def switch_to_first_image(e):
-            if self.current_image not in (None, 0):
-                switch_image(-self.current_image)
-
-        self.parent.bind("<parenright>", switch_to_first_image)
-        self.parent.bind("<W>", switch_to_first_image)
+        self.parent.bind(f"<Shift-Right>", lambda e: self.switch_image(1))
+        self.parent.bind(f"<L>", lambda e: self.switch_image(1))
+        self.parent.bind(f"<Shift-Left>", lambda e: self.switch_image(-1))
+        self.parent.bind(f"<H>", lambda e: self.switch_image(-1))
+        self.parent.bind("<parenright>",
+                         lambda e: self.switch_image(-9999))
+        self.parent.bind("<W>",
+                         lambda e: self.switch_image(-9999))
 
         # Mouse (global)
         if platform.system() == "Darwin":  # right mouse button on Mac is 2
@@ -1006,9 +1183,9 @@ class MainApplication(ttk.Frame):
         def clicked_canvas_item(e):
             clicked = e.widget.find_closest(e.x, e.y)[0]
             if clicked in (self.canvas_right_bg, self.canvas_right_fg):
-                switch_image(1)
+                self.switch_image(1)
             elif clicked in (self.canvas_left_bg, self.canvas_left_fg):
-                switch_image(-1)
+                self.switch_image(-1)
 
         self.canvas.bind("<Button-1>", clicked_canvas_item)
 
@@ -1144,6 +1321,15 @@ class MainApplication(ttk.Frame):
         self.canvas_arrow_right = False
         self.canvas_arrow_left = False
 
+    def switch_image(self, step):
+        if self.current_image is not None:
+            new_image = self.current_image + step
+            if new_image < 0:
+                new_image = 0
+            elif new_image >= self.loaded_album.nr_of_slides:
+                new_image = self.loaded_album.nr_of_slides - 1
+            self.show_image(new_image)
+
     def load_album(self, path, exact=False):
         # Clear current state
         self.parent.title("ZAP")
@@ -1199,9 +1385,9 @@ class MainApplication(ttk.Frame):
         # Hack: For some reason the treeview colums do not stretch correctly
         # initially, so hardcode all column sizes
         if self.fullscreen.get():
-            size = self.parent.winfo_geometry().split("+")[0]
-            width = int(size.split("x")[0])
-            height = int(size.split("x")[1])
+            size, pos_x, pos_y = re.split(r'(?=[+-]\d+)',
+                                          self.parent.winfo_geometry())
+            width, height = [int(x) for x in size.split("x")]
         else:
             width = WIDTH
             height = HEIGHT
@@ -1503,6 +1689,53 @@ class MainApplication(ttk.Frame):
         else:
             self.play()
 
+    def increment_track(self, step):
+        if self.selected_track_id is not None:
+            selected_track_id = self.selected_track_id + step
+            if selected_track_id < 0:
+                selected_track_id = 0
+            elif selected_track_id >= len(self.loaded_album.tracklist):
+                selected_track_id = len(self.loaded_album.tracklist) - 1
+            if str(self.playpause_button["state"]) == "disabled":
+                return
+            play_next = False
+            if self.playing_track_id is not None:
+                if self.now() - self._last_increment_track < 0.5:
+                    return
+                self._last_increment_track = self.now()
+                self.pause()
+                play_next = True
+            self.tree.selection_set([str(selected_track_id)])
+            self.tree.focus(str(selected_track_id))
+            self.tree.see(str(selected_track_id))
+            self.selected_track_id = selected_track_id
+            self.load_track()
+            #self.parent.update()
+            self.player.clear_on_queue = True
+            self.player.seek(0.0)
+            if play_next:
+                self.play()
+
+    def increment_playhead(self, step):
+        if self.loaded_album is not None:
+            if str(self.playpause_button["state"]) == "disabled":
+                return
+            track = self.loaded_album.tracklist[self.selected_track_id]
+            new_playhead = self.playhead + step
+            if new_playhead < 0:
+                new_playhead = 0
+            pos = track["streaminfo"]["duration"] / 100 * new_playhead
+            self.playhead = new_playhead
+            self.player.seek(pos)
+
+    def increment_volume(self, step):
+        if self.volume + step < 0:
+            self.volume = 0
+        elif self.volume + step > 100:
+            self.volume = 100
+        else:
+            self.volume += step
+
     def schedule_resize(self, event):
         if not (self.size == [event.width, event.height]):
             if self.resize_after_id:
@@ -1514,9 +1747,9 @@ class MainApplication(ttk.Frame):
             width = size[0]
             height = size[1]
         else:
-            size = self.parent.winfo_geometry().split("+")[0]
-            width = int(size.split("x")[0])
-            height = int(size.split("x")[1])
+            size, pos_x, pos_y = re.split(r'(?=[+-]\d+)',
+                                          self.parent.winfo_geometry())
+            width, height = [int(x) for x in size.split("x")]
         self.canvas["width"] = height
         self.canvas["height"] = height
         self.size = [width, height]
@@ -1570,7 +1803,21 @@ class MainApplication(ttk.Frame):
             else:
                 width = max_width
                 height = max_width - (WIDTH - HEIGHT)
+        elif "custom" in preset:
+            if not self.config.has_option("VIEW", f"preset_{preset}"):
+                return
+            size = self.config.get("VIEW", f"preset_{preset}")
+            width, height = size.split("x")
         self.parent.geometry(f"{width}x{height}")
+
+    def store_custom_view_preset(self, number, event=None):
+        #size = self.parent.geometry().split("+")[0]
+        if not self.fullscreen.get():
+            if not self.config.has_section("VIEW"):
+                self.config.add_section("VIEW")
+            self.config.set("VIEW", f"preset_custom{number}",
+                            f"{self.size[0]}x{self.size[1]}")
+            self.create_menu()
 
     def fit_to_slides(self, event=None):
         if not self.fullscreen.get():
@@ -1586,9 +1833,14 @@ class MainApplication(ttk.Frame):
             self.show_menubar.set(not self.show_menubar.get())
         if self.show_menubar.get():
             self.parent["menu"] = self.menubar
+            show_menubar = True
         else:
             self.parent["menu"] = ""
+            show_menubar = False
         self.update()
+        if not self.config.has_section("VIEW"):
+            self.config.add_section("VIEW")
+        self.config.set("VIEW", "show_menubar", str(int(show_menubar)))
    #         self.show_menu_binding = self.parent.bind("<Alt_L>",
    #                                                   self.toggle_temp_menubar)
    #         self.temp_show_menubar = False
@@ -1612,16 +1864,20 @@ class MainApplication(ttk.Frame):
    #     self.hide_menu_binding = self.parent.bind("<KeyRelease>",
    #                                                   self.toggle_temp_menubar)
 
-
-
     def toggle_always_on_top(self, event=None):
         self.parent.attributes('-topmost', self.always_on_top.get())
+        if not self.config.has_section("VIEW"):
+            self.config.add_section("VIEW")
+        self.config.set("VIEW", "always_on_top",
+                        str(int(self.always_on_top.get())))
 
     def toggle_fullscreen(self, event=None):
         if event is not None:  # if triggered by keybinding, update checkbox
             self.fullscreen.set(not self.fullscreen.get())
         #self.fullscreen = not self.fullscreen
         fullscreen = self.fullscreen.get()
+        if fullscreen:
+            self._last_geometry = self.parent.geometry()
         self.columnconfigure(0, weight=int(not fullscreen))
         self.columnconfigure(1, weight=int(fullscreen))
         #if self.fullscreen:
@@ -1631,13 +1887,15 @@ class MainApplication(ttk.Frame):
             self.update()
             self.update()
             #self.parent.deiconify()
-            size = self.parent.winfo_geometry().split("+")[0]
-            width = int(size.split("x")[0])
-            height = int(size.split("x")[1])
+            size, pos_x, pos_y = re.split(r'(?=[+-]\d+)',
+                                          self.parent.winfo_geometry())
+            width, height = [int(x) for x in size.split("x")]
             #self.parent.state("normal")
         else:
-            width = WIDTH
-            height = HEIGHT
+            geometry = self._last_geometry
+            size, pos_x, pos_y = re.split(r'(?=[+-]\d+)', geometry)
+            width, height = [int(x) for x in size.split("x")]
+            self.parent.geometry(geometry)
         self.size = (width, height)
         self.resize((width, height))
         self.title.configure(wraplength=width-height-2*PADDING)
@@ -1652,6 +1910,15 @@ class MainApplication(ttk.Frame):
             current_image = self.current_image
         self.show_image(current_image)
         self.truncate_titles()
+        if not self.config.has_section("VIEW"):
+            self.config.add_section("VIEW")
+        self.config.set("VIEW", "fullscreen", str(int(fullscreen)))
+
+    def toggle_repeat_album(self, event=None):
+        if not self.config.has_section("PLAYBACK"):
+            self.config.add_section("PLAYBACK")
+        self.config.set("PLAYBACK", "repeat",
+                        str(int(self.repeat_album.get())))
 
     def set_title(self):
         title = "ZAP"
@@ -1672,6 +1939,14 @@ class MainApplication(ttk.Frame):
         self.parent.title(title)
 
     def quit(self):
+        #if not self.config.has_section("GENERAL"):
+        #    self.config.add_section("GENERAL")
+        #if self.fullscreen.get():
+        #    geometry = self._last_geometry
+        #else:
+        #    geometry = self.parent.geometry()
+        #self.config.set("GENERAL", "window_geometry", geometry)
+        self.write_config()
         self.player = None
         del self.player
         self.parent.destroy()
@@ -1686,6 +1961,7 @@ def run():
             pass
 
     root = tk.Tk()
+    root.geometry(f"{WIDTH}x{HEIGHT}+0+0")
     dpi = root.winfo_fpixels('1i')
     root.tk.call('tk', 'scaling', SCALING * (dpi / 72.0))
     root.withdraw()
@@ -1705,10 +1981,14 @@ def run():
     root.minsize(WIDTH-HEIGHT, 0)
     root.lift()
     root.focus_force()
-    root.protocol('WM_DELETE_WINDOW', app.quit)
-    root.geometry(f"{WIDTH-1}x{HEIGHT-1}")  # hack for removing empty scrollbar
+
+    #size, pos_x, pos_y = re.split(r'(?=[+-]\d+)', app._last_geometry)
+    #width, height = [int(x) for x in size.split("x")]
+    root.geometry(f"{WIDTH-1}x{HEIGHT-1}+0+0")  # hack for removing empty scrollbar
+    #root.geometry(f"{width-1}x{height-1}{pos_x}{pos_y}")  # hack for removing empty scrollbar
     root.update_idletasks()
     root.geometry(f"{WIDTH}x{HEIGHT}")
+    #root.geometry(app._last_geometry)
 
     from .binaries import has_ffmpeg
     if not has_ffmpeg():
@@ -1755,7 +2035,11 @@ def run():
     except:
         pass
 
+    root.protocol('WM_DELETE_WINDOW', app.quit)
+    if platform.system() == "Darwin":
+        root.createcommand("tk::mac::Quit" , app.quit)
     app.create_bindings()
+
     root.mainloop()
 
 
