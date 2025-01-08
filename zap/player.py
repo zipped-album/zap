@@ -172,10 +172,10 @@ class FFmpegSource(FFmpegSource):
                 self._audio_stream = stream
                 self._audio_stream_index = i
 
-                channel_input = avutil.av_get_default_channel_layout(
+                channel_input = self._get_default_channel_layout(
                     info.channels)
                 channels_out = min(2, info.channels)
-                channel_output = avutil.av_get_default_channel_layout(
+                channel_output = self._get_default_channel_layout(
                     channels_out)
 
                 bitdepth = info.sample_bits
@@ -204,9 +204,11 @@ class FFmpegSource(FFmpegSource):
                     sample_size=bitdepth,
                     sample_rate=info.sample_rate)
 
-                self.audio_convert_ctx = swresample.swr_alloc_set_opts(
-                    None, channel_output, self.tgt_format, sample_rate,
-                    channel_input, sample_format, sample_rate, 0, None)
+                self.audio_convert_ctx = self.get_formatted_swr_context(
+                    channel_output, sample_rate, channel_input, sample_format)
+                                         #swresample.swr_alloc_set_opts(
+                    #None, channel_output, self.tgt_format, sample_rate,
+                    #channel_input, sample_format, sample_rate, 0, None)
 
                 if bitreduction and avutil.av_opt_set(self.audio_convert_ctx,
                                                       asbytes("dither_method"),
