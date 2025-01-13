@@ -386,9 +386,9 @@ class DownloadFFmpegDialogue:
 
         top.protocol("WM_DELETE_WINDOW", lambda: None)
 
-        size, x, y  = re.split(r'(?=[+-]\d+)', master.parent.geometry())
+        size, pos_x, pos_y = master.parent.geometry().split("+")
 
-        root_x = int(x)
+        root_x = int(pos_x)
         top.geometry(f"+%d+%d" % (root_x, master.winfo_rooty()))
 
         top.transient(self.master)
@@ -461,7 +461,7 @@ class MainApplication(ttk.Frame):
         self.load_config()
         #geometry = self.config.get("GENERAL", "window_geometry",
         #                           fallback=f"{WIDTH}x{HEIGHT}+0+0")
-        #size, pos_x, pos_y = re.split(r'(?=[+-]\d+)', geometry)
+        #size, pos_x, pos_y = geometry.split("+")
         #width, height = [int(x) for x in size.split("x")]
         #self.size = [width, height]
         #self._last_geometry = geometry
@@ -670,10 +670,10 @@ class MainApplication(ttk.Frame):
         self.file_menu_bar.add_command(**file_create)
 
         if platform.system() != "Darwin":
-            self.file_menu.add_separator()
-            self.file_menu.add_command(label="Quit",
-                                       command=self.quit,
-                                       accelerator=f"{modifier}-Q")
+            self.file_menu_bar.add_separator()
+            self.file_menu_bar.add_command(label="Quit",
+                                           command=self.quit,
+                                           accelerator=f"{modifier}-Q")
 
         self.view_menu = tk.Menu(self.menubar, tearoff=False)
         self.menu.add_cascade(menu=self.view_menu, label=view_menu_label)
@@ -866,7 +866,7 @@ class MainApplication(ttk.Frame):
                 command=lambda: HelpDialogue(self.master),
                 accelerator="F1")
 
-        if self.show_menubar:
+        if self.show_menubar.get():
             self.parent["menu"] = self.menubar
 
         self.menu.add_separator()
@@ -1385,8 +1385,7 @@ class MainApplication(ttk.Frame):
         # Hack: For some reason the treeview colums do not stretch correctly
         # initially, so hardcode all column sizes
         if self.fullscreen.get():
-            size, pos_x, pos_y = re.split(r'(?=[+-]\d+)',
-                                          self.parent.winfo_geometry())
+            size, pos_x, pos_y = self.parent.winfo_geometry().split("+")
             width, height = [int(x) for x in size.split("x")]
         else:
             width = WIDTH
@@ -1747,8 +1746,7 @@ class MainApplication(ttk.Frame):
             width = size[0]
             height = size[1]
         else:
-            size, pos_x, pos_y = re.split(r'(?=[+-]\d+)',
-                                          self.parent.winfo_geometry())
+            size, pos_x, pos_y = self.parent.winfo_geometry().split("+")
             width, height = [int(x) for x in size.split("x")]
         self.canvas["width"] = height
         self.canvas["height"] = height
@@ -1887,13 +1885,12 @@ class MainApplication(ttk.Frame):
             self.update()
             self.update()
             #self.parent.deiconify()
-            size, pos_x, pos_y = re.split(r'(?=[+-]\d+)',
-                                          self.parent.winfo_geometry())
+            size, pos_x, pos_y = self.parent.winfo_geometry().split("+")
             width, height = [int(x) for x in size.split("x")]
             #self.parent.state("normal")
         else:
             geometry = self._last_geometry
-            size, pos_x, pos_y = re.split(r'(?=[+-]\d+)', geometry)
+            size, pos_x, pos_y = geometry.split("+")
             width, height = [int(x) for x in size.split("x")]
             self.parent.geometry(geometry)
         self.size = (width, height)
@@ -1980,9 +1977,8 @@ def run():
     root.deiconify()
     root.minsize(WIDTH-HEIGHT, 0)
     root.lift()
-    root.focus_force()
 
-    #size, pos_x, pos_y = re.split(r'(?=[+-]\d+)', app._last_geometry)
+    #size, pos_x, pos_y = app._last_geometry.split("+")
     #width, height = [int(x) for x in size.split("x")]
     root.geometry(f"{WIDTH-1}x{HEIGHT-1}+0+0")  # hack for removing empty scrollbar
     #root.geometry(f"{width-1}x{height-1}{pos_x}{pos_y}")  # hack for removing empty scrollbar
@@ -2038,7 +2034,9 @@ def run():
     root.protocol('WM_DELETE_WINDOW', app.quit)
     if platform.system() == "Darwin":
         root.createcommand("tk::mac::Quit" , app.quit)
+
     app.create_bindings()
+    root.focus_force()
 
     root.mainloop()
 
