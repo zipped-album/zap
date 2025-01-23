@@ -2,7 +2,9 @@ import os
 import io
 import re
 import glob
+import base64
 import urllib
+import struct
 import zipfile
 import tempfile
 import datetime
@@ -10,7 +12,19 @@ import dateutil.parser
 import multiprocessing
 import xml.etree.ElementTree as ET
 
-import audio_metadata
+try:
+    import mutagen
+except ImportError:
+    mutagen = None
+    try:
+        import tinytag
+    except ImportError:
+        tinytag = None
+        try:
+            import audio_metadata
+        except ImportError:
+            audio_metadata = None
+
 import fitz
 
 from .__meta__ import __author__, __version__
@@ -44,6 +58,195 @@ def _get_content(files):
                 if os.path.split(file)[0] == "":  # exclude subdirectories
                     content[types].append(file)
     return content
+
+def _read_ogg_page(f):
+    # Read the Ogg page header (27 bytes)
+    header = f.read(27)
+    if len(header) < 27:
+        return None  # End of file or error
+
+    # Unpack the header
+    try:
+        (capture_pattern, version, header_type, granule_position,
+         serial_number, page_sequence_no, checksum, page_segments) = \
+            struct.unpack('<4sBsqIIIB', header)
+    except struct.error:
+        raise ValueError("Not a valid Ogg file")
+
+    # Check for the Ogg capture pattern
+    if capture_pattern != b'OggS' or version != 0:
+        raise ValueError("Not a valid Ogg file")
+
+    # Read the segment table
+    segment_table = f.read(page_segments)
+    if len(segment_table) < page_segments:
+        return None  # End of file or error
+
+    # Read the segment data
+    segment_sizes = [seg for seg in segment_table]
+    body_size = sum(segment_sizes)
+    body = f.read(body_size)
+
+    return {'header': header, 'body': body, 'serial_number': serial_number,
+            'granule_position': granule_position, 'header_type': header_type,
+            'page_sequence_no': page_sequence_no,
+            'page_segments': page_segments}
+
+def _get_opus_stream_size(f):
+    f.seek(0)
+    header_count = 0
+    serial = None
+    size = 0
+
+    while True:
+        page = _read_ogg_page(f)
+        if page is None:
+            break  # End of file or error
+        # Read pages until first Opus header page (identification header)
+        elif header_count == 0: # Identification header
+            if page['body'][:8] != b'OpusHead':  # Page from other stream?
+                continue
+            else:  # Found it
+                serial = page['serial_number']
+                header_count += 1
+        # Check for expected second Opus header page (comment header)
+        elif header_count == 1 and page['serial_number'] == serial:
+            if page['body'][:8] != b'OpusTags':
+                raise ValueError("Not a valid Opus file")
+            else:
+                header_count += 1
+        # Read pages until first page with audio data
+        elif header_count == 2 and page['serial_number'] == serial:
+            if int.from_bytes(page['header_type'], 'little') & 0x01:
+                continue  # Contiunation of second Opus header page
+            elif page['granule_position'] > 0:  # Found it
+                header_count += 1
+                size += len(page['body'])
+        # Read remaining pages with audio data
+        elif page['granule_position'] > 0 and page['serial_number'] == serial:
+            size += len(page['body'])
+            # If page is last page (end of stream), we are done
+            if int.from_bytes(page['header_type'], 'little') & 0x04:
+                break
+
+    return size
+
+def _get_track_metadata_audio_metadata(f):
+    metadata = audio_metadata.loads(f.read())
+
+    metadata["codec"] = re.findall(r'FLAC|Opus', type(metadata).__name__)[0]
+
+    return metadata
+
+def _get_track_metadata_tinytag(f):
+    metadata = {"codec": "", "pictures": [], "streaminfo": {}, "tags":{}}
+    tt = tinytag.TinyTag.get(file_obj=f, image=True)
+
+    if type(tt).__name__ == "_Ogg":
+        metadata["codec"] = "Opus"
+    elif type(tt).__name__ == "_Flac":
+        metadata["codec"] = "FLAC"
+
+    if tt.images.any is not None:
+        metadata["pictures"].append(tt.images.any)
+
+    for tag in ["bit_depth", "bitrate", "channels", "duration", "sample_rate"]:
+        if tag == "bitrate":
+            if getattr(tt, tag) is not None:
+                metadata["streaminfo"][tag] = getattr(tt, tag) * 1000
+            else:
+                try:
+                    size = _get_opus_stream_size(f)
+                except:
+                    size = tt.filesize
+                    for image in [tt.images.front_cover, tt.images.back_cover,
+                                   tt.images.media, tt.images.other]:
+                        if type(image) is tinytag.tinytag.Image:
+                            size -= len(image.data)
+                        elif type(image) is tinytag.tinytag.OtherImages:
+                            for k in image:
+                                for i in image[k]:
+                                    size -= len(i.data)
+                metadata["streaminfo"]["bitrate"] =  size * 8 / tt.duration
+        else:
+            if hasattr(tt, tag.replace("_", "")):
+                metadata["streaminfo"][tag] = getattr(tt, tag.replace("_", ""))
+
+    for tag in ["album", "albumartist", "artist", "date", "title",
+                "tracknumber"]:
+        if hasattr(tt, tag):
+            metadata["tags"][tag] = [getattr(tt, tag)]
+            if hasattr(tt, "other") and tag in tt.other:
+                metadata["tags"][tag].extend(tt.other[tag])
+
+    return metadata
+
+def _get_track_metadata_mutagen(f):
+    metadata = {"codec": "", "pictures": [], "streaminfo": {}, "tags":{}}
+    m = mutagen.File(f)
+
+    try:
+        metadata["codec"] = re.findall(r'Opus|FLAC', type(m).__name__)[0]
+    except:
+        pass
+
+    if hasattr(m, "pictures"):
+        try:
+            metadata["pictures"] = m.pictures
+        except:
+            pass
+    elif "metadata_block_picture" in m.tags:
+        try:
+            b64_data = m.tags["metadata_block_picture"][0]
+            data = base64.b64decode(b64_data)
+            picture = mutagen.flac.Picture(data)
+            metadata["pictures"] = [picture]
+        except:
+            pass
+
+    for tag in ["bit_depth", "bitrate", "channels", "duration", "sample_rate"]:
+        if tag == "bit_depth":
+            if hasattr(m.info, "bits_per_sample"):
+                metadata["streaminfo"][tag] = getattr(m.info,
+                                                      "bits_per_sample")
+        if tag == "bitrate":
+            if hasattr(m.info, tag):
+                metadata["streaminfo"][tag] = getattr(m.info, tag)
+            else:
+                try:
+                    size = _get_opus_stream_size(f)
+                except:
+                    f.seek(0, os.SEEK_END)
+                    total_size = f.tell()
+                    metadata_size = sum(len(str(v).encode("utf-8")) \
+                                        for v in m.tags.values())
+                    size = total_size - metadata_size
+                metadata["streaminfo"]["bitrate"] = size * 8 / m.info.length
+        elif tag == "duration":
+            metadata["streaminfo"][tag] = m.info.length
+        elif tag == "sample_rate":
+            if hasattr(m.info, tag):
+                metadata["streaminfo"][tag] = getattr(m.info, tag)
+            elif metadata["codec"] == "Opus":
+                metadata["streaminfo"][tag] = 48000
+        else:
+            if hasattr(m.info, tag):
+                metadata["streaminfo"][tag] = getattr(m.info, tag)
+
+    for tag in ["album", "albumartist", "artist", "date", "title",
+                "tracknumber"]:
+        if tag in m.tags:
+            metadata["tags"][tag] = m.tags[tag]
+
+    return metadata
+
+def _get_track_metadata(f):
+    if mutagen is not None:
+        return _get_track_metadata_mutagen(f)
+    elif tinytag is not None:
+        return _get_track_metadata_tinytag(f)
+    elif audio_metadata is not None:
+        return _get_track_metadata_audio_metadata(f)
 
 def _sort_images(images):
     front = []
@@ -174,8 +377,9 @@ class ZippedAlbum:
             self._tracks = {}
             for track in self._content["tracks"]:
                 try:
-                    self._tracks[track] = audio_metadata.loads(
-                        self._archive.read(track))
+                    with self._archive.open(track) as f:
+                        self._tracks[track] = _get_track_metadata(f)
+                        #self._archive.read(track))
                 except:
                     pass
             return self._tracks
@@ -382,17 +586,26 @@ class ZippedAlbum:
             else:
                 used_numbers = []
                 for nr, (filename, track) in enumerate(self.tracks.items()):
-                    d = datetime.timedelta(
-                        seconds=track["streaminfo"]["duration"])
-                    d = str(d - datetime.timedelta(
-                        microseconds=d.microseconds))
-                    d = d.split(":")
-                    if int(d[0]) > 0:
-                        duration = ":".join(d)
-                    else:
-                        if int(d[1]) <= 9:
-                            d[1] = d[1][1:]
-                        duration = ":".join(d[1:])
+
+                    #d = datetime.timedelta(
+                    #    seconds=track["streaminfo"]["duration"])
+                    #d = str(d - datetime.timedelta(
+                    #    microseconds=d.microseconds))
+                    #d = d.split(":")
+                    #if int(d[0]) > 0:
+                    #    duration = ":".join(d)
+                    #else:
+                    #    if int(d[1]) <= 9:
+                    #        d[1] = d[1][1:]
+                    #    duration = ":".join(d[1:])
+                    h, r = divmod(round(track["streaminfo"]["duration"]), 3600)
+                    m, s = divmod(r, 60)
+                    total_minutes = int(track["streaminfo"]["duration"] / 60)
+                    total_seconds = round(track["streaminfo"]["duration"] % 60)
+                    duration = f"{total_minutes}:{total_seconds:02}"
+
+                    #duration = ":".join(
+                    #    [f"{x:02}" for x in (h, m, s) if x > 0])
                     if len(set(artists)) > 1:
                         try:
                             artist = "; ".join(track["tags"]["artist"])
@@ -442,15 +655,22 @@ class ZippedAlbum:
             return self._playtime
         else:
             durations = [x["streaminfo"]["duration"] for x in self.tracklist]
-            d = datetime.timedelta(seconds=sum(durations))
-            d = str(d - datetime.timedelta(microseconds=d.microseconds))
-            d = d.split(":")
-            if int(d[0]) > 0:
-                self._playtime = ":".join(d)
+            #d = datetime.timedelta(seconds=sum(durations))
+            #d = str(d - datetime.timedelta(microseconds=d.microseconds))
+            #d = d.split(":")
+            #if int(d[0]) > 0:
+            #    self._playtime = ":".join(d)
+            #else:
+            #    if int(d[1]) < 9:
+            #        d[1] = d[1][1:]
+            #    self._playtime = ":".join(d[1:])
+            total_seconds = round(sum(durations))
+            hours, remainder = divmod(total_seconds, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            if hours == 0:
+                self._playtime = f"{minutes}:{seconds:02}"
             else:
-                if int(d[1]) < 9:
-                    d[1] = d[1][1:]
-                self._playtime = ":".join(d[1:])
+                self._playtime = f"{hours}:{minutes:02}:{seconds:02}"
             return self._playtime
 
     @property

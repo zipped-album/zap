@@ -59,7 +59,7 @@ if platform.system() == "Windows":
     FONTSIZE = 11
 elif platform.system() == "Darwin":
     FONTNAME = "Helvetica Neue"
-    FONTSIZE =13
+    FONTSIZE = 13
 else:
     FONTNAME = "Nimbus Sans"
     FONTSIZE = 10
@@ -546,11 +546,11 @@ class MainApplication(ttk.Frame):
                 self.playhead_slider["value"] = value
                 track = self.loaded_album.tracklist[self.selected_track_id]
                 total_minutes = int(track["streaminfo"]["duration"] / 60)
-                total_seconds = int(track["streaminfo"]["duration"] % 60)
+                total_seconds = round(track["streaminfo"]["duration"] % 60)
                 pad_minutes = len(str(total_minutes))
                 pos = track["streaminfo"]["duration"] / 100 * self.playhead
                 minutes = int(pos / 60)
-                seconds = int(pos % 60)
+                seconds = round(pos % 60)
                 min_str = str(minutes).rjust(pad_minutes, '0')
                 sec_str = str(seconds).rjust(2, '0')
                 self.playhead_label["text"] = f"{min_str}:{sec_str}"
@@ -563,7 +563,9 @@ class MainApplication(ttk.Frame):
         if self.loaded_album is not None:
             initialdir = os.path.split(self.loaded_album.filename)[0]
         else:
-            initialdir = os.getcwd()
+            initialdir = self.config.get("GENERAL", "directory",
+                                         fallback=os.getcwd())
+
         allowed_extensions = ".zip .zlbm"
         filetypes = [("Zipped Album files", allowed_extensions),
                      ("All files", "*.*")]
@@ -576,6 +578,9 @@ class MainApplication(ttk.Frame):
             self.toggle_always_on_top()
 
         if filename:
+            if not self.config.has_section("GENERAL"):
+                self.config.add_section("GENERAL")
+            self.config.set("GENERAL", "directory", os.path.split(filename)[0])
             self.load_album(filename, exact=exact)
             self.parent.focus_force()
 
@@ -1608,7 +1613,7 @@ class MainApplication(ttk.Frame):
         self.playpause_button["state"] = "normal"
         self.playpause_label["state"] = "normal"
         try:
-            codec = type(track).__name__
+            codec = track["codec"]
             codec_str = f"{codec} • "
         except:
             codec_str = ""
