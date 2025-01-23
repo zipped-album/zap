@@ -1,5 +1,5 @@
-pillow>=7.0.0,<=11.1.0
-PyMuPDF>=1.17.4,<=1.25.1
-audio-metadata==0.11.1
-pyglet==2.1.0
+pillow>=7.0.0,<=11.1
+PyMuPDF>=1.17.4,<=1.25
+mutagen==1.47
+pyglet==2.1
 certifi
