@@ -1955,12 +1955,15 @@ class MainApplication(ttk.Frame):
 
 def run():
     if platform.system() == "Windows":
+        import ctypes
         try:
-            import ctypes
             id_ = 'mycompany.myproduct.subproduct.version' # arbitrary
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(id_)
         except:
             pass
+
+        # Make window DPI unaware (Windows will blurry-scale it if necessary)
+        error_code = ctypes.windll.shcore.SetProcessDpiAwareness(0)
 
     root = tk.Tk()
     root.geometry(f"{WIDTH}x{HEIGHT}+0+0")

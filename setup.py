@@ -41,7 +41,8 @@ setup(
     install_requires = ["pillow>=7.0.0,<=11.1",
                         "PyMuPDF>=1.17.4,<=1.25",
                         "mutagen==1.47",
-                        "pyglet==2.1"],
+                        "pyglet==2.1",
+                        "python-dateuil"],
     entry_points={
         'gui_scripts': [
             'zap = zap.__main__:run',
