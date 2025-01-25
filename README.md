@@ -30,7 +30,7 @@ ZAP will attempt to download a local copy the first time it is started.
 
 1. **Make sure you have Python 3 with Tkinter support installed**
    
-   If not, install it. For instance with this installer: https://www.python.org/ftp/python/3.10.4/python-3.10.4-amd64.exe
+   If not, install it. For instance with this installer: https://www.python.org/ftp/python/3.13.1/python-3.13.1-amd64.exe
    
 2. **Install pipx**
    
@@ -49,7 +49,7 @@ ZAP will attempt to download a local copy the first time it is started.
 
 1. **Make sure you have Python 3 with Tkinter support installed**
    
-   If not, install it. For instance with this installer: https://www.python.org/ftp/python/3.10.4/python-3.10.4-macos11.pkg
+   If not, install it. For instance with this installer: https://www.python.org/ftp/python/3.13.1/python-3.13.1-macos11.pkg
    
 2. **Install pipx**
    
