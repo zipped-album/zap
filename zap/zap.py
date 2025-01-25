@@ -885,10 +885,11 @@ class MainApplication(ttk.Frame):
         except:
             pass
         finally:
-            try:
-                self.menu.grab_release()
-            except:
-                pass
+            if platform.system() != "Linux":
+                try:
+                    self.menu.grab_release()
+                except:
+                    pass
 
     def change_menu_state(self, state):
         self.menubar.entryconfig("File", state=state)
