@@ -97,6 +97,8 @@ def _get_opus_stream_size(f):
     header_count = 0
     serial = None
     size = 0
+    last_page_size = None
+    eos = False
 
     while True:
         page = _read_ogg_page(f)
@@ -121,13 +123,20 @@ def _get_opus_stream_size(f):
                 continue  # Contiunation of second Opus header page
             elif page['granule_position'] > 0:  # Found it
                 header_count += 1
-                size += len(page['body'])
+                last_page_size = len(page['body'])
+                size += last_page_size
         # Read remaining pages with audio data
         elif page['granule_position'] > 0 and page['serial_number'] == serial:
-            size += len(page['body'])
+            last_page_size = len(page['body'])
+            size += last_page_size
             # If page is last page (end of stream), we are done
             if int.from_bytes(page['header_type'], 'little') & 0x04:
+                eos = True
                 break
+
+    # If last page did not contain "end of stream" flag, it was incomplete
+    if not eos:
+        size -= last_page_size
 
     return size
 
@@ -558,11 +567,15 @@ class ZippedAlbum:
                                 continue
                         else:
                             continue
-                    d = datetime.timedelta(
-                        seconds=track["streaminfo"]["duration"])
-                    d = str(d - datetime.timedelta(
-                        microseconds=d.microseconds))
-                    duration = d.lstrip("0:")
+                    #d = datetime.timedelta(
+                    #    seconds=track["streaminfo"]["duration"])
+                    #d = str(d - datetime.timedelta(
+                    #    microseconds=d.microseconds))
+                    #duration = d.lstrip("0:")
+                    total_minutes = int(track["streaminfo"]["duration"] / 60)
+                    total_seconds = round(track["streaminfo"]["duration"] % 60)
+                    duration = f"{total_minutes}:{total_seconds:02}"
+
                     if len(set(artists)) > 1:
                         try:
                             artist = "; ".join(track["tags"]["artist"])
@@ -598,14 +611,10 @@ class ZippedAlbum:
                     #    if int(d[1]) <= 9:
                     #        d[1] = d[1][1:]
                     #    duration = ":".join(d[1:])
-                    h, r = divmod(round(track["streaminfo"]["duration"]), 3600)
-                    m, s = divmod(r, 60)
                     total_minutes = int(track["streaminfo"]["duration"] / 60)
                     total_seconds = round(track["streaminfo"]["duration"] % 60)
                     duration = f"{total_minutes}:{total_seconds:02}"
 
-                    #duration = ":".join(
-                    #    [f"{x:02}" for x in (h, m, s) if x > 0])
                     if len(set(artists)) > 1:
                         try:
                             artist = "; ".join(track["tags"]["artist"])
