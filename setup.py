@@ -19,7 +19,7 @@ with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
 
 setup(
-    name = 'Zipped Album Player',
+    name = 'Zipped-Album-Player',
     description = \
     'Zipped Album Player (ZAP) - ' \
     'A simple Python-based cross-platform player for the Zipped Album format',
