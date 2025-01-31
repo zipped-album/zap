@@ -32,6 +32,11 @@ except ModuleNotFoundError:
     print("Error: Python not configured for Tk!")
     sys.exit()
 
+try:
+    import tkinterdnd2
+except:
+    tkinterdnd2 = None
+
 from PIL import ImageTk, Image
 from PIL import __version__ as pil_version
 
@@ -210,8 +215,14 @@ class TrackTooltip:
         self.style.map('Treeview', foreground=fixed_map('foreground'),
                        background=fixed_map('background'))
 
+    def activate(self):
         self.treeview.bind("<Motion>", self.schedule)
         self.treeview.bind("<Leave>", self.leave)
+
+    def deactivate(self):
+        self.leave(None)
+        self.treeview.unbind("<Motion>")
+        self.treeview.unbind("<Leave>")
 
     def schedule(self, event):
         self.unschedule()
@@ -301,7 +312,10 @@ class TrackTooltip:
                           wraplength=self.treeview.winfo_width() - 120)
         label.grid(row=2, column= 0, padx=2, ipadx=0, ipady=0, sticky="nw")
 
-        x, y, cx, cy = self.treeview.bbox(idd)
+        try:
+            x, y, cx, cy = self.treeview.bbox(idd)
+        except ValueError:
+            return
         x = x + self.treeview.winfo_rootx() + event.x + 15
         rowheight = self.style.lookup("Treeview", "rowheight")
         if rowheight == "":
@@ -581,6 +595,7 @@ class MainApplication(ttk.Frame):
             if not self.config.has_section("GENERAL"):
                 self.config.add_section("GENERAL")
             self.config.set("GENERAL", "directory", os.path.split(filename)[0])
+            self.clear()
             self.load_album(filename, exact=exact)
             self.parent.focus_force()
 
@@ -1076,6 +1091,13 @@ class MainApplication(ttk.Frame):
 
         self.parent.bind("<Configure>", self.schedule_resize)  #self.truncate_titles)
 
+        if tkinterdnd2 is not None:
+            def load_album(e):
+                self.clear()
+                self.parent.after(1, lambda: self.load_album(e.data.strip("{}")))
+            self.parent.drop_target_register(tkinterdnd2.DND_FILES)
+            self.parent.dnd_bind('<<Drop>>', load_album)
+
         # Keyboard (global)
         if platform.system() == "Darwin":
             modifier = "Command"
@@ -1336,8 +1358,8 @@ class MainApplication(ttk.Frame):
                 new_image = self.loaded_album.nr_of_slides - 1
             self.show_image(new_image)
 
-    def load_album(self, path, exact=False):
-        # Clear current state
+    def clear(self):
+        self.track_tooltip.deactivate()
         self.parent.title("ZAP")
         self.hide_image()
         self.show_image(-1)
@@ -1350,11 +1372,17 @@ class MainApplication(ttk.Frame):
         self.title["text"] = ""
         self.artist["text"] = "Opening Album..."
         self.info["text"] = ""
-        self.tree_frame.grid_remove()
-        self.tree_frame.grid()
-        self.parent.update()
+        for i in self.tree.get_children():
+            self.tree.delete(i)
+        self.playhead_label["text"] = ""
+        self.playhead_slider["value"] = 0
+        self.playpause_button["state"] = "disable"
+        self.playpause_label["state"] = "disable"
+        self.trackinfo["text"] = ""
+        self.create_menu()
+        self.update()
 
-        # Load new album
+    def load_album(self, path, exact=False):
         try:
             self.loaded_album = ZippedAlbum(path, exact=exact)
         except:
@@ -1410,6 +1438,8 @@ class MainApplication(ttk.Frame):
         self.tree.see("0")
         self.selected_track_id = 0
         self.truncate_titles()
+
+        self.track_tooltip.activate()
 
         print(f"Loaded album: {path}")
 
@@ -1966,7 +1996,10 @@ def run():
         # Make window DPI unaware (Windows will blurry-scale it if necessary)
         error_code = ctypes.windll.shcore.SetProcessDpiAwareness(0)
 
-    root = tk.Tk()
+    if tkinterdnd2 is not None:
+        root = tkinterdnd2.TkinterDnD.Tk()
+    else:
+        root = tk.Tk()
     root.geometry(f"{WIDTH}x{HEIGHT}+0+0")
     dpi = root.winfo_fpixels('1i')
     root.tk.call('tk', 'scaling', SCALING * (dpi / 72.0))

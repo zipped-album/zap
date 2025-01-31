@@ -42,7 +42,8 @@ setup(
                         "PyMuPDF>=1.17.4,<=1.25",
                         "mutagen==1.47",
                         "pyglet==2.1",
-                        "python-dateutil"],
+                        "python-dateutil",
+                        "tkinterdnd2"],
     entry_points={
         'gui_scripts': [
             'zap = zap.__main__:run',

@@ -3,4 +3,5 @@ PyMuPDF>=1.17.4,<=1.25
 mutagen==1.47
 pyglet==2.1
 python-dateutil
+tkinterdnd2
 certifi
