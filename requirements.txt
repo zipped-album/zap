@@ -1,7 +1,7 @@
-pillow>=7.0.0,<=11.1
-PyMuPDF>=1.17.4,<=1.25
+pillow>=7.0.0,<11.2
+PyMuPDF>=1.17.4,<1.26
 mutagen==1.47
-pyglet==2.1
+pyglet<2.2
 python-dateutil
 tkinterdnd2
 certifi
