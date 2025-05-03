@@ -63,15 +63,6 @@ ZAP will attempt to download a local copy the first time it is started.
    ```
    pipx install Zipped-Album-Player
    ```
-
-**Note**:
-
-On ARM-based Macs you will, for now, still need to have FFmpeg (shared
-libraries) installed on the system. You can install them, for instance, using
-Homebrew:
-```
-brew install ffmpeg
-```
    
 ### Linux
 
