@@ -114,7 +114,7 @@ def download_ffmpeg(progress=None):
     if progress:
         progress(0, 100, "")
 
-    for version in (6,5,4):
+    for version in (7, 6, 5, 4):
         try:
             filename = f"ffmpeg{version}-{platform}.zip"
             url = f"{url_base}/{filename}"
