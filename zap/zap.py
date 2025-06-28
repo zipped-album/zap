@@ -636,23 +636,25 @@ class MainApplication(ttk.Frame):
         self.menu = tk.Menu(self.parent, tearoff=False)  # right-click menu
         self.menubar = tk.Menu(self.parent, tearoff=False)  # menubar
 
-        self.menu.add_command(
-                label="About ZAP",
-                command=lambda: HelpDialogue(self.master),
-                accelerator="F1")
-
         if platform.system() == "Darwin":
             modifier = "Command"
+            f_accelerator_prefix = "Command-"
             self.apple_menu = tk.Menu(self.menubar, name="apple")
             self.menubar.add_cascade(menu=self.apple_menu, label="ZAP")
             self.apple_menu.add_command(
                 label="About ZAP",
                 command=lambda: HelpDialogue(self.master),
-                accelerator="F1")
+                accelerator=f"{f_accelerator_prefix}F1")
             view_menu_label = "View "  # hack to fix automatic MacOS View menu
         else:
             modifier = "Control"
+            f_accelerator_prefix = ""
             view_menu_label = "View"
+
+        self.menu.add_command(
+                label="About ZAP",
+                command=lambda: HelpDialogue(self.master),
+                accelerator=f"{f_accelerator_prefix}F1")
 
         self.menu.add_separator()
         #self.menu.add_command(label="Open...",
@@ -789,7 +791,7 @@ class MainApplication(ttk.Frame):
         self.view_menu.add_checkbutton(label="Fullscreen",
                                        variable=self.fullscreen,
                                        command=self.toggle_fullscreen,
-                                       accelerator="F11")
+                                       accelerator=f"{f_accelerator_prefix}F11")
         if platform.system() == "Darwin":
             self.view_menu.entryconfig("Show menubar", state="disabled")
         else:
@@ -1124,10 +1126,14 @@ class MainApplication(ttk.Frame):
                          lambda e: self.set_view_preset("custom4"))
 
         self.parent.bind(f"<{modifier}-Key-0>", self.fit_to_slides)
-        if platform.system() != "Darwin":
+        if platform.system() == "Darwin":
+            self.parent.bind(f"<{modifier}-F11>", self.toggle_fullscreen)
+            self.parent.bind(f"<{modifier}-F1>",
+                             lambda e: HelpDialogue(self.master))
+        else:
             self.parent.bind(f"<{modifier}-m>", self.toggle_show_menubar)
-        self.parent.bind("<F11>", self.toggle_fullscreen)
-        self.parent.bind("<F1>", lambda e: HelpDialogue(self.master))
+            self.parent.bind("<F11>", self.toggle_fullscreen)
+            self.parent.bind("<F1>", lambda e: HelpDialogue(self.master))
         self.parent.bind(f"<{modifier}-q>", lambda e: self.quit())
 
         self.parent.bind("<Down>", lambda e: self.increment_track(1))
@@ -1912,6 +1918,8 @@ class MainApplication(ttk.Frame):
         fullscreen = self.fullscreen.get()
         if fullscreen:
             self._last_geometry = self.parent.geometry()
+        else:
+            self.parent.overrideredirect(False)
         self.columnconfigure(0, weight=int(not fullscreen))
         self.columnconfigure(1, weight=int(fullscreen))
         #if self.fullscreen:
@@ -1921,18 +1929,21 @@ class MainApplication(ttk.Frame):
             self.update()
             self.update()
             #self.parent.deiconify()
+            self.parent.overrideredirect(True)
             size, pos_x, pos_y = self.parent.winfo_geometry().split("+")
             width, height = [int(x) for x in size.split("x")]
             #self.parent.state("normal")
+            wraplength = width - height - 2 * PADDING
         else:
             geometry = self._last_geometry
             size, pos_x, pos_y = geometry.split("+")
             width, height = [int(x) for x in size.split("x")]
             self.parent.geometry(geometry)
+            wraplength = WIDTH - HEIGHT - 2 * PADDING
         self.size = (width, height)
         self.resize((width, height))
-        self.title.configure(wraplength=width-height-2*PADDING)
-        self.artist.configure(wraplength=width-height-2*PADDING)
+        self.title.configure(wraplength=wraplength)
+        self.artist.configure(wraplength=wraplength)
         #self.parent.columnconfigure(0, weight=int(self.fullscreen))
         #self.parent.columnconfigure(1, weight=int(not self.fullscreen))
         #self.parent.rowconfigure(0, weight=int(self.fullscreen))
