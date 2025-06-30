@@ -27,7 +27,7 @@ except:
 
 from pyglet.media.codecs.ffmpeg import *
 
-from .__meta__ import __author__, __version__
+from .__init__ import __author__, __version__
 
 
 # Hack to fix current bug in Pyglet >2.0.10

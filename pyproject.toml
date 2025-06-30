@@ -1,0 +1,41 @@
+[build-system]
+requires = ["flit_core>=3.12,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.flit.module]
+name = "zap"
+
+[project]
+authors = [
+  {name = "Florian Krause", email = "florian.krause@fladd.de"}
+]
+description ='Zipped Album Player (ZAP) - ' \
+'A simple Python-based cross-platform player for the Zipped Album format'
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+name = "Zipped-Album-Player"
+readme = "README.md"
+requires-python = ">=3.8"
+dynamic = ["version"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+  "Operating System :: OS Independent"
+]
+dependencies = [
+  "pillow>=7.0.0,<11.2",
+  "PyMuPDF>=1.17.4,<1.26",
+  "mutagen==1.47",
+  "pyglet<2.2",
+  "python-dateutil",
+  "tkinterdnd2"
+]
+
+[project.urls]
+"Homepage" = "https://zipped-album.github.io"
+"Repository" = "https://github.com/zipped-album/zap.git"
+"Bug Tracker" = "https://github.com/zipped-album/zap/issues"
+
+[project.gui-scripts]
+zap = "zap.__main__:run"
+zipped-album-player = "zap.__main__:run"

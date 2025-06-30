@@ -40,7 +40,7 @@ except:
 from PIL import ImageTk, Image
 from PIL import __version__ as pil_version
 
-from .__meta__ import __author__, __version__
+from .__init__ import __author__, __version__
 from .album import ZippedAlbum, create_zipped_album
 from .binaries import has_ffmpeg, download_ffmpeg, get_platform
 

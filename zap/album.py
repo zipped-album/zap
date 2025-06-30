@@ -27,7 +27,7 @@ except ImportError:
 
 import fitz
 
-from .__meta__ import __author__, __version__
+from .__init__ import __author__, __version__
 
 
 FILETYPES = {"tracks": [".flac", ".opus"],
