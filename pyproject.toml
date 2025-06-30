@@ -9,8 +9,7 @@ name = "zap"
 authors = [
   {name = "Florian Krause", email = "florian.krause@fladd.de"}
 ]
-description = "Zipped Album Player (ZAP) - A simple Python-based" +
-              "cross-platform player for the Zipped Album format"
+description = "Zipped Album Player (ZAP) - A simple Python-based cross-platform player for the Zipped Album format"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 name = "Zipped-Album-Player"
