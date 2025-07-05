@@ -32,7 +32,7 @@ from .__init__ import __author__, __version__
 
 # Hack to fix current bug in Pyglet >2.0.10
 # (https://github.com/pyglet/pyglet/issues/1175#issuecomment-2241332603)
-if pyglet.__version__ > "2.0.10":
+if "2.0.10" < pyglet.__version__ < "2.0.17":
     try:
         from pyglet.media.codecs import PreciseStreamingSource
 
