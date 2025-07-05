@@ -995,10 +995,12 @@ class MainApplication(ttk.Frame):
         frame_up.grid_configure(padx=PADDING, pady=PADDING)
         self.title = ttk.Label(frame_up, text="", anchor="center",
                                font=(FONTNAME, FONTSIZE+8, "bold"),
+                               justify="center",
                                wraplength=WIDTH-HEIGHT-2*PADDING)
         self.title.grid(column=0, row=0, sticky="ew")
         self.artist = ttk.Label(frame_up, text="No Album", anchor="center",
                                 font=(FONTNAME, FONTSIZE+4, "italic"),
+                                justify="center",
                                 wraplength=WIDTH-HEIGHT-2*PADDING)
         self.artist.grid(column=0, row=1, sticky="ew")
         self.info = ttk.Label(frame_up, text="", anchor="center",
