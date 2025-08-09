@@ -26,7 +26,8 @@ dependencies = [
   "mutagen==1.47",
   "pyglet>=2.0.10,<2.2",
   "python-dateutil",
-  "tkinterdnd2"
+  "tkinterdnd2",
+  "pyobjc-framework-Cocoa; sys_platform == 'darwin'"
 ]
 
 [project.urls]
