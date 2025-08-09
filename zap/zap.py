@@ -2009,6 +2009,15 @@ def run():
         # Make window DPI unaware (Windows will blurry-scale it if necessary)
         error_code = ctypes.windll.shcore.SetProcessDpiAwareness(0)
 
+    elif platform.system() == "Darwin":
+        # Change the application menu from "Python" to "ZAP"
+        from Foundation import NSBundle
+        bundle = NSBundle.mainBundle()
+        if bundle:
+            info = bundle.localizedInfoDictionary() or bundle.infoDictionary()
+            if info and info['CFBundleName'] == 'Python':
+                info['CFBundleName'] = "ZAP"
+
     if tkinterdnd2 is not None:
         root = tkinterdnd2.TkinterDnD.Tk()
     else:
