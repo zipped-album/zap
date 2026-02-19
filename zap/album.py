@@ -251,11 +251,20 @@ def _get_track_metadata_mutagen(f):
 
 def _get_track_metadata(f):
     if mutagen is not None:
-        return _get_track_metadata_mutagen(f)
+        metadata = _get_track_metadata_mutagen(f)
     elif tinytag is not None:
-        return _get_track_metadata_tinytag(f)
+        metadata = _get_track_metadata_tinytag(f)
     elif audio_metadata is not None:
-        return _get_track_metadata_audio_metadata(f)
+        metadata = _get_track_metadata_audio_metadata(f)
+
+    # Fix tracknumbers that include total track count (e.g. "1/10")
+    try:
+        metadata["tags"]["tracknumber"] = \
+            [x.split("/")[0] for x in metadata["tags"]["tracknumber"]]
+    except:
+        pass
+
+    return metadata
 
 def _sort_images(images):
     front = []
