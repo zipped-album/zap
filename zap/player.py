@@ -18,7 +18,7 @@ else:
 
 import pyglet
 pyglet.options['search_local_libs'] = True
-pyglet.options['audio'] = ('openal', 'directsound', 'silent')
+pyglet.options['audio'] = ('silent')
 
 try:
     assert pyglet.media.codecs.have_ffmpeg()
@@ -30,24 +30,183 @@ from pyglet.media.codecs.ffmpeg import *
 from .__init__ import __author__, __version__
 
 
-# Hack to fix current bug in Pyglet >2.0.10
-# (https://github.com/pyglet/pyglet/issues/1175#issuecomment-2241332603)
-if "2.0.10" < pyglet.__version__ < "2.0.17":
-    try:
-        from pyglet.media.codecs import PreciseStreamingSource
 
-        def _saf(s, f): s._source.audio_format = f
-        def _svf(s, f): s._source.video_format = f
-        def _sin(s, i): s._source.info = i
-        PreciseStreamingSource.audio_format = property(
-            lambda s: s._source.audio_format, _saf)
-        PreciseStreamingSource.video_format = property(
-            lambda s: s._source.video_format, _svf)
-        PreciseStreamingSource.info = property(lambda s: s._source.info, _sin)
-        PreciseStreamingSource.duration = property(
-            lambda s: s._source.duration)
-    except ImportError:
+def _discover_available_audio_outputs():
+    available_audio_outputs = {}
+
+    try:  # OpenAL
+        from pyglet.media.drivers import openal
+        driver = openal.create_audio_driver()
+
+        # Monkey patch support for 32-bit float
+        float32 = bool(
+            openal.lib_openal.alIsExtensionPresent(b"AL_EXT_float32"))
+        if float32:
+            openal.interface.OpenALBuffer._format_map[(2, 32)] = 65553
+        d = {"driver": "openal",
+             "int32": False,
+             "float32": float32}
+        available_audio_outputs["OpenAL"] = d
+
+    except:
         pass
+
+    try:  # PulseAudio
+        from pyglet.media.drivers import pulse
+        driver = pulse.create_audio_driver()
+        d = {"driver": "pulse",
+             "int32": False,
+             "float32": False}
+
+        # Monkey patch support for 32-bit float
+        try:
+            def create_sample_spec(self, audio_format):
+                """
+                Create a PulseAudio sample spec from pyglet audio format.
+                """
+
+                from pulse import lib_pulseaudio as pa
+
+                _FORMATS = {
+                    ('little', 8, 'int'):    pa.PA_SAMPLE_U8,
+                    ('big', 8, 'int'):       pa.PA_SAMPLE_U8,
+                    ('little', 16, 'int'):   pa.PA_SAMPLE_S16LE,
+                    ('big', 16, 'int'):      pa.PA_SAMPLE_S16BE,
+                    ('little', 24, 'int'):   pa.PA_SAMPLE_S24LE,
+                    ('big', 24, 'int'):      pa.PA_SAMPLE_S24BE,
+                    ('little', 32, 'int'):   pa.PA_SAMPLE_S32LE,
+                    ('big', 32, 'int'):      pa.PA_SAMPLE_S32BE,
+                    ('little', 32, 'float'): pa.PA_SAMPLE_FLOAT32LE,
+                    ('big', 32, 'float'):    pa.PA_SAMPLE_FLOAT32BE,
+                }
+                fmt = (sys.byteorder, audio_format.sample_size,
+                       audio_format.sample_type)
+                if fmt not in _FORMATS:
+                    raise MediaException(
+                        f'Unsupported sample size/format: {fmt}')
+
+                sample_spec = pa.pa_sample_spec()
+                sample_spec.format = _FORMATS[fmt]
+                sample_spec.rate = audio_format.sample_rate
+                sample_spec.channels = audio_format.channels
+                return sample_spec
+
+            pulse.interface.PulseAudioStream.create_sample_spec = \
+                create_sample_spec
+
+            d["int32"] =  True
+            d["float32"] = True
+
+        except:
+            pass
+
+        available_audio_outputs["PulseAudio"] = d
+
+    except:
+        pass
+
+    try:  # DirectSound
+        from pyglet.media.drivers import directsound
+        driver = directsound.create_audio_driver()
+        d = {"driver": "directsound",
+             "int32": False,
+             "flaot32": False}
+
+        # Monkey patch support for 24-bit and 32-bit float
+        try:
+            def _create_wave_format(audio_format):
+                from directsound import lib_dsound as lib
+
+                if audio_format.channels > 2 or \
+                        audio_format.sample_size not in (8, 16, 24, 32):
+                    raise MediaException(
+                        f'Unsupported audio format: {audio_format}')
+
+                wfx = lib.WAVEFORMATEX()
+                if audio_format.sample_type == "float":
+                    wfx.wFormatTag = 3
+                else:
+                    wfx.wFormatTag = lib.WAVE_FORMAT_PCM
+                wfx.nChannels = audio_format.channels
+                wfx.nSamplesPerSec = audio_format.sample_rate
+                wfx.wBitsPerSample = audio_format.sample_size
+                wfx.nBlockAlign = wfx.wBitsPerSample * wfx.nChannels // 8
+                wfx.nAvgBytesPerSec = wfx.nSamplesPerSec * wfx.nBlockAlign
+                return wfx
+
+            directsound.interface._create_wave_format = _create_wave_format
+
+            d["int32"] =  True
+            d["float32"] = True
+
+        except:
+              pass
+
+        available_audio_outputs["DirectSound"] = d
+
+    except:
+        pass
+
+    try:  #XAudio2
+        from pyglet.media.drivers import xaudio2
+        driver = directsound.create_audio_driver()
+        d = {"driver": "xaudio2",
+             "int32": False,
+             "flaot32": False}
+
+        # Monkey patch to support 24-bit and 32-bit float
+        try:
+            def create_xa2_waveformat(audio_format):
+                from xaudio2 import lib_xaudio2 as lib
+
+                if audio_format.channels > 2 or \
+                        audio_format.sample_size not in (8, 16, 24, 32):
+                    raise MediaException(
+                        f'Unsupported audio format: {audio_format}')
+
+                wfx = lib.WAVEFORMATEX()
+                if audio_format.sample_type == "float":
+                    wfx.wFormatTag = 3
+                else:
+                    wfx.wFormatTag = lib.WAVE_FORMAT_PCM
+                wfx.nChannels = audio_format.channels
+                wfx.nSamplesPerSec = audio_format.sample_rate
+                wfx.wBitsPerSample = audio_format.sample_size
+                wfx.nBlockAlign = wfx.wBitsPerSample * wfx.nChannels // 8
+                wfx.nAvgBytesPerSec = wfx.nSamplesPerSec * wfx.nBlockAlign
+                return wfx
+
+            xaudio2.interface._create_xa2_waveformat = _create_x2a_waveformat
+
+            d["int32"] =  True
+            d["float32"] = True
+
+        except:
+            pass
+
+        available_audio_outputs["XAudio2"] = d
+
+    except:
+        pass
+
+    available_audio_outputs["Silent"] = {"driver": "silent",
+                                         "int32": True,
+                                         "float32": True}
+
+    return available_audio_outputs
+
+AVAILABLE_AUDIO_OUTPUTS = _discover_available_audio_outputs()
+
+def _discover_available_output_formats():
+    available_output_formats = {}
+    for output in AVAILABLE_AUDIO_OUTPUTS:
+        d = {"Automatic": 0, "16-bit": AV_SAMPLE_FMT_S16}
+        if AVAILABLE_AUDIO_OUTPUTS[output]["float32"]:
+            d["32-bit float"] = AV_SAMPLE_FMT_FLT
+        available_output_formats[output] = d
+    return available_output_formats
+
+AVAILABLE_OUTPUT_FORMATS = _discover_available_output_formats()
 
 
 class FFmpegSource(FFmpegSource):
@@ -57,7 +216,7 @@ class FFmpegSource(FFmpegSource):
         - Close tempfile after writing it
         - Delete tempfile when object is deleted
         - Allow bit depth to be higher than 16
-        - Reduce bit rate to 16 when using OpenAL
+        - Allow fixing target format
         - Dither (and noise shape) on bit reduction
 
     Original code from the Pyglet project (pyglet.org) is under the following
@@ -95,6 +254,14 @@ class FFmpegSource(FFmpegSource):
     POSSIBILITY OF SUCH DAMAGE.
 
     """
+
+
+    fixed_tgt_format = 0  # 0, None or False for automatic
+
+    _AV_BITS = {AV_SAMPLE_FMT_U8: 8, AV_SAMPLE_FMT_U8P: 8,
+                AV_SAMPLE_FMT_S16: 16, AV_SAMPLE_FMT_S16P: 16,
+                AV_SAMPLE_FMT_S32: 32, AV_SAMPLE_FMT_S32P: 32,
+                AV_SAMPLE_FMT_FLT: 32, AV_SAMPLE_FMT_FLTP: 32}
 
     def __init__(self, filename, file=None):
         self._tempfile = None
@@ -164,7 +331,6 @@ class FFmpegSource(FFmpegSource):
                 self._video_stream_index = i
 
             elif (isinstance(info, StreamAudioInfo) and
-                  info.sample_bits in [8, 16, 32] and
                   self._audio_stream is None):
 
                 stream = ffmpeg_open_stream(self._file, i)
@@ -178,43 +344,48 @@ class FFmpegSource(FFmpegSource):
                 channel_output = self._get_default_channel_layout(
                     channels_out)
 
-                bitdepth = info.sample_bits
-                bitreduction = False
                 sample_rate = stream.codec_context.contents.sample_rate
                 sample_format = stream.codec_context.contents.sample_fmt
-                if sample_format in (AV_SAMPLE_FMT_U8, AV_SAMPLE_FMT_U8P):
-                    self.tgt_format = AV_SAMPLE_FMT_U8
-                elif sample_format in (AV_SAMPLE_FMT_S16, AV_SAMPLE_FMT_S16P):
-                    self.tgt_format = AV_SAMPLE_FMT_S16
-                elif sample_format in (AV_SAMPLE_FMT_S32, AV_SAMPLE_FMT_S32P):
-                    if type(pyglet.media.get_audio_driver()).__name__ == \
-                            "OpenALDriver":
+
+                try:
+                    sample_bits = self._AV_BITS[sample_format]
+                except:
+                    raise FFmpegException('Audio format not supported.')
+
+                if not self.fixed_tgt_format:  # Automatic
+                    if sample_bits == 32:
+                        d = pyglet.media.get_audio_driver()
+                        active_output = type(d).__name__.replace("Driver", "")
+                        if AVAILABLE_AUDIO_OUTPUTS[active_output]["int32"]:
+                            self.tgt_format = AV_SAMPLE_FMT_S32
+                        elif AVAILABLE_AUDIO_OUTPUTS[active_output]["float32"]:
+                            self.tgt_format = AV_SAMPLE_FMT_FLT
+                        else:
+                            self.tgt_format = AV_SAMPLE_FMT_S16
+                    elif sample_bits == 16:
                         self.tgt_format = AV_SAMPLE_FMT_S16
-                        bitdepth = 16
-                        bitreduction = True
-                    else:
-                        self.tgt_format = AV_SAMPLE_FMT_S32
-                elif sample_format in (AV_SAMPLE_FMT_FLT, AV_SAMPLE_FMT_FLTP):
-                    self.tgt_format = AV_SAMPLE_FMT_S16
+                    elif sample_bits == 8:
+                        self.tgt_format = AV_SAMPLE_FMT_U8
+                elif self.fixed_tgt_format in self._AV_BITS:
+                    self.tgt_format = self.fixed_tgt_format
                 else:
                     raise FFmpegException('Audio format not supported.')
 
                 self.audio_format = AudioFormat(
                     channels=channels_out,
-                    sample_size=bitdepth,
+                    sample_size=self._AV_BITS[self.tgt_format],
                     sample_rate=info.sample_rate)
 
                 self.audio_convert_ctx = self.get_formatted_swr_context(
                     channel_output, sample_rate, channel_input, sample_format)
-                                         #swresample.swr_alloc_set_opts(
-                    #None, channel_output, self.tgt_format, sample_rate,
-                    #channel_input, sample_format, sample_rate, 0, None)
 
-                if bitreduction and avutil.av_opt_set(self.audio_convert_ctx,
-                                                      asbytes("dither_method"),
-                                                      asbytes("low_shibata"),
-                                                      0) != 0:
-                    print("Info: Bit reduction without dithering")
+                if (self._AV_BITS[self.tgt_format] < sample_bits):
+                        res = avutil.av_opt_set(self.audio_convert_ctx,
+                                                asbytes("dither_method"),
+                                                asbytes("low_shibata"),
+                                                0)
+                        if res != 0:
+                            print("Info: Bit reduction without dithering")
 
                 if (not self.audio_convert_ctx or
                         swresample.swr_init(self.audio_convert_ctx) < 0):
@@ -273,14 +444,38 @@ class AudioPlayer:
 
     """
 
-    def __init__(self):
-        """Create an AudioPlayer object."""
+    available_audio_outputs = AVAILABLE_AUDIO_OUTPUTS
+    available_output_formats = AVAILABLE_OUTPUT_FORMATS
 
+    def __init__(self, audio_output, output_format):
+        """Create an AudioPlayer object.
+
+        Parameters
+        ----------
+        audio_output : str
+            the pyglet audio driver to use ('XAudio2', 'DirectSound', 'OpenAL',
+            'PulseAudio')
+        audio_format : int
+            the FFmpeg output format to use ("Automatic", "16-bit",
+            "32-bit float")
+
+        """
+
+        audio_driver = self.available_audio_outputs[audio_output]["driver"]
+        module = __import__(f"pyglet.media.drivers.{audio_driver}",
+                            fromlist=['create_audio_driver'])
+        pyglet.media.drivers._audio_driver = module.create_audio_driver()
+
+        FFmpegSource.fixed_tgt_format = \
+            self.available_output_formats[audio_output][output_format]
+
+        self._audio_output = audio_output
+        self._output_format = output_format
         self._player = pyglet.media.Player()
         self._on_eos = None
         self._clear_on_queue = True
         self.offset = 0
-        print(f"Audio playback: {self.audio_driver}")
+        print(f"Audio Output: {self.audio_output} ({self.output_format})")
 
     def __del__(self):
         """Delete an AudioPlayer object."""
@@ -288,8 +483,12 @@ class AudioPlayer:
         self._player.delete()
 
     @property
-    def audio_driver(self):
-        return type(pyglet.media.get_audio_driver()).__name__
+    def audio_output(self):
+        return self._audio_output
+
+    @property
+    def output_format(self):
+        return self._output_format
 
     @property
     def is_playing(self):
@@ -298,13 +497,7 @@ class AudioPlayer:
     @property
     def buffer_size(self):
         if self.is_playing:
-            if pyglet.__version__ <= "2.0.10":
-                if self.audio_driver == "DirectSoundDriver":
-                    return self._player._audio_player._buffer_size
-                elif self.audio_driver == "OpenALDriver":
-                    return self._player._audio_player.ideal_buffer_size
-            else:
-                return self._player._audio_player._buffered_data_ideal_size
+            return self._player._audio_player._buffered_data_ideal_size
     @property
     def buffer_time(self):
         if self.is_playing:
@@ -441,8 +634,21 @@ class GaplessAudioPlayer(AudioPlayer):
 
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, audio_output, output_format):
+        """Create an AudioPlayer object.
+
+        Parameters
+        ----------
+        audio_output : str
+            the pyglet audio driver to use ('XAudio2', 'DirectSound', 'OpenAL',
+            'PulseAudio')
+        audio_format : int
+            the FFmpeg output format to use ("Automatic", "16-bit",
+            "32-bit float")
+
+        """
+
+        super().__init__(audio_output, output_format)
         self._on_gapless_eos = None
         self.clear()
 

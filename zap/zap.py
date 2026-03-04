@@ -33,9 +33,15 @@ except ModuleNotFoundError:
     sys.exit()
 
 try:
+    probe = tk.Tcl()
+    probe.withdraw()
+    probe.call('package', 'require', 'Tk')
+    probe.call('package', 'require', 'tkdnd')
+    probe.destroy()
     import tkinterdnd2
 except:
     tkinterdnd2 = None
+
 
 from PIL import ImageTk, Image
 from PIL import __version__ as pil_version
@@ -54,6 +60,12 @@ elif "QT_SCREEN_SCALE_FACTORS" in os.environ:
         ";")[0].split("=")[-1])
 else:
     SCALING = 1
+
+_TK_SCALING = 1.0  # Gets updated to Tk scaling value once there is a Tk root
+
+if tk.TclVersion >= 9:
+    SCALING = 1
+
 
 WIDTH = int(1024 * SCALING)
 HEIGHT = int(600 * SCALING)
@@ -114,9 +126,27 @@ def _frame_coords(self, frame_id, x, y, r):
     self.coords(frame_id, x-r, y-r, x+r, y+r)
 tk.Canvas.frame_coords = _frame_coords
 
-def get_shaded_colour(rgb, amount):
+def _px(size):
+    return -round(size / _TK_SCALING)
+
+def font(size, weight="normal", slant="roman"):
+    """
+    The final 'Parity' function.
+    Matches your 8.6 look on a Tcl 9.0 Retina Mac.
+    """
+    # 1. We must 'inflate' the pixel request because Tcl 9 
+    # treats '-9' as physically smaller than 8.6 did.
+    # On M4, _TCL_RATIO is usually 1.33 or 2.0.
+    target_px = _px(size)
+
+    # 2. Return the STRING format (Braces handle spaces in font names)
+    # Result: "{Helvetica} -12 bold roman" 
+    return f"{{{FONTNAME}}} {target_px} {weight} {slant}"
+
+def get_hex_colour(rgb, brightness=None):
         h,l,s = colorsys.rgb_to_hls(rgb[0], rgb[1], rgb[2])
-        l = amount
+        if brightness is not None:
+            l = brightness
         r,g,b = [int(x * 255) for x in colorsys.hls_to_rgb(h,l,s)]
         colour = f"#{r:02X}{g:02X}{b:02X}"
         return colour
@@ -189,6 +219,64 @@ class ResizingCanvas(tk.Canvas):
         self.scale("all", 0, 0, wscale, hscale)
 
 
+import tkinter as tk
+
+class CanvasProgressbar(tk.Canvas):
+    def __init__(self, master, **kwargs):
+        # 1. Extract values before Canvas init
+        self._maximum = float(kwargs.pop('maximum', 100))
+        self._value = float(kwargs.pop('value', 0))
+
+        for key in ('orient', 'mode', 'length', 'period', 'maxphase'):
+            kwargs.pop(key, None)
+
+        kwargs.setdefault('highlightthickness', 0)
+        kwargs.setdefault('bd', 0)
+        kwargs.setdefault('bg', '#222')
+
+        super().__init__(master, **kwargs)
+
+        self.bar = self.create_rectangle(0, 0, 0, 0, fill="#007AFF", outline="")
+        self.bind("<Configure>", lambda e: self._update_view())
+
+    def _update_view(self):
+        w = self.winfo_width()
+        h = self.winfo_height()
+        if w <= 1: return
+        fill_w = (self._value / self._maximum) * w if self._maximum > 0 else 0
+        self.coords(self.bar, 0, 0, fill_w, h)
+
+    @property
+    def value(self): return self._value
+
+    @value.setter
+    def value(self, v):
+        self._value = float(v)
+        self.after_idle(self._update_view)
+
+    def __getitem__(self, key):
+        """Intercepts self.playhead_slider['value']"""
+        if key == 'value':
+            return self._value
+        if key == 'maximum':
+            return self._maximum
+        return super().cget(key)
+
+    def cget(self, key):
+        """Some internal calls use .cget() directly."""
+        return self.__getitem__(key)
+
+    def __setitem__(self, key, val):
+        """Intercepts self.playhead_slider['value'] = x"""
+        if key == 'value':
+            self.value = val
+        elif key == 'maximum':
+            self._maximum = float(val)
+            self._update_view()
+        else:
+            super().configure(**{key: val})
+
+
 class TrackTooltip:
     def __init__(self, treeview, app_always_on_top):
         self.treeview = treeview
@@ -245,6 +333,12 @@ class TrackTooltip:
             self.treeview.after_cancel(id)
 
     def show(self, event):
+        normal_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE-2))
+        bold_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE-2),
+                                weight="bold")
+        italic_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE-2),
+                                  slant="italic")
+
         idd = self.treeview.identify_row(event.y)
         if idd == "":
             return
@@ -252,9 +346,15 @@ class TrackTooltip:
                                           bg="white")
         rgb = [x / 65535 for x in self.tooltip_window.winfo_rgb(
             self.style.lookup('TFrame', 'background'))]
-        highlight_colour = get_shaded_colour(rgb, 0.52)
+        highlight_colour = get_hex_colour(rgb, 0.52)
         self.tooltip_window["highlightbackground"] = highlight_colour
-        self.tooltip_window.wm_overrideredirect(1)
+
+        if platform.system() == "Darwin":
+            self.tooltip_window.tk.call("::tk::unsupported::MacWindowStyle",
+                                         "style", self.tooltip_window._w,
+                                         "help", "noActivates")
+        else:
+            self.tooltip_window.wm_overrideredirect(1)
         self.tooltip_window.columnconfigure(2, weight=1)
         track = self.album.tracklist[int(idd)]
         tags = track["tags"].keys()
@@ -283,7 +383,8 @@ class TrackTooltip:
         except:
             title = "Unknown Title"
         label = ttk.Label(self.frame, text=title, justify=tk.LEFT,
-                          font=(FONTNAME, FONTSIZE-2, "bold"),
+                          font=font(FONTSIZE-2, weight="bold"),
+                          #font=bold_font,
                           wraplength=self.treeview.winfo_width() - 120)
         label.grid(row=0, column= 0, padx=2, ipadx=0, ipady=0, sticky="nw")
         try:
@@ -292,7 +393,8 @@ class TrackTooltip:
             artist = "Unknown Artist"
         label = ttk.Label(self.frame,
                           text=artist, justify=tk.LEFT,
-                          font=(FONTNAME, FONTSIZE-2, "italic"),
+                          font=font(FONTSIZE-2, slant="italic"),
+                          #font=italic_font,
                           wraplength=self.treeview.winfo_width() - 120)
         label.grid(row=1, column= 0, padx=2, ipadx=0, ipady=0, sticky="nw")
         try:
@@ -308,7 +410,8 @@ class TrackTooltip:
         except:
             year = "Unknown Year"
         label = ttk.Label(self.frame, text=year, justify=tk.LEFT,
-                          font=(FONTNAME, FONTSIZE-2),
+                          font=font(FONTSIZE-2),
+                          #font=normal_font,
                           wraplength=self.treeview.winfo_width() - 120)
         label.grid(row=2, column= 0, padx=2, ipadx=0, ipady=0, sticky="nw")
 
@@ -322,14 +425,6 @@ class TrackTooltip:
             rowheight = 20
         y = y + cy + self.treeview.winfo_rooty() - rowheight // 2 - 50
         self.tooltip_window.wm_geometry(f"+{x}+{y}")
-
-        try:
-            # For Mac OS
-            self.tooltip_window.tk.call("::tk::unsupported::MacWindowStyle",
-                                         "style", self.tooltip_window._w,
-                                         "help", "noActivates")
-        except tk.TclError:
-            pass
 
         self.tooltip_window.update()
         try:
@@ -471,6 +566,7 @@ class MainApplication(ttk.Frame):
         ttk.Frame.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.style = ttk.Style()
+        #self.style.theme_use("clam")
         self.config = configparser.ConfigParser()
         self.load_config()
         #geometry = self.config.get("GENERAL", "window_geometry",
@@ -484,6 +580,14 @@ class MainApplication(ttk.Frame):
         self.repeat_album = tk.BooleanVar()
         self.repeat_album.set(self.config.getboolean("PLAYBACK", "repeat",
                                                     fallback=False))
+
+        self.audio_output = tk.StringVar()
+        self.audio_output.set(self.config.get("PLAYBACK", "audio_output",
+                                              fallback="Silent"))
+
+        self.output_format = tk.StringVar()
+        self.output_format.set(self.config.get("PLAYBACK", "output_format",
+                                              fallback="Automatic"))
         self.show_menubar = tk.BooleanVar()
         self.show_menubar.set(self.config.getboolean("VIEW", "show_menubar",
                                                      fallback=True))
@@ -678,7 +782,7 @@ class MainApplication(ttk.Frame):
         self.file_menu.add_command(**file_open)
         self.file_menu_bar.add_command(**file_open)
 
-        file_open_exact = {"label" :"Open exact...",
+        file_open_exact = {"label" :"Open Exact...",
                            "command": lambda: self._open_album(exact=True)}
         self.file_menu.add_command(**file_open_exact)
         self.file_menu_bar.add_command(**file_open_exact)
@@ -744,48 +848,48 @@ class MainApplication(ttk.Frame):
                                                    state="disabled")
         self.view_presets_menu.add_separator()
         self.view_presets_menu.add_command(
-            label="Store current size as Custom 1",
+            label="Store Current Size as Custom 1",
             command=lambda: self.store_custom_view_preset(1))
         self.view_presets_menu.add_command(
-            label="Store current size as Custom 2",
+            label="Store Current Size as Custom 2",
             command=lambda: self.store_custom_view_preset(2))
         self.view_presets_menu.add_command(
-            label="Store current size as Custom 3",
+            label="Store Current Size as Custom 3",
             command=lambda: self.store_custom_view_preset(3))
         self.view_presets_menu.add_command(
-            label="Store current size as Custom 4",
+            label="Store Current Size as Custom 4",
             command=lambda: self.store_custom_view_preset(4))
 
-        self.view_menu.add_command(label="Fit to slides",
+        self.view_menu.add_command(label="Fit to Slides",
                                    command=self.fit_to_slides,
                                    accelerator=f"{modifier}-0")
         self.view_menu.add_separator()
-        self.view_menu.add_command(label="Show next slide",
+        self.view_menu.add_command(label="Show Next Slide",
                                    command=lambda: self.switch_image(1),
                                    accelerator=f"Shift-Right")
-        self.view_menu.add_command(label="Show previous slide",
+        self.view_menu.add_command(label="Show Previous Slide",
                                    command=lambda: self.switch_image(-1),
                                    accelerator=f"Shift-Left")
-        self.view_menu.add_command(label="Show first slide",
+        self.view_menu.add_command(label="Show First Slide",
                                    command=lambda: self.switch_image(
                                        -9999),
                                    accelerator=f"Shift-w")
         if self.loaded_album is None:
-            self.view_menu.entryconfig("Show next slide", state="disabled")
-            self.view_menu.entryconfig("Show previous slide", state="disabled")
-            self.view_menu.entryconfig("Show first slide", state="disabled")
+            self.view_menu.entryconfig("Show Next Slide", state="disabled")
+            self.view_menu.entryconfig("Show Previous Slide", state="disabled")
+            self.view_menu.entryconfig("Show First Slide", state="disabled")
         else:
-            self.view_menu.entryconfig("Show next slide", state="normal")
-            self.view_menu.entryconfig("Show previous slide", state="normal")
-            self.view_menu.entryconfig("Show first slide", state="normal")
+            self.view_menu.entryconfig("Show Next Slide", state="normal")
+            self.view_menu.entryconfig("Show Previous Slide", state="normal")
+            self.view_menu.entryconfig("Show First Slide", state="normal")
 
         self.view_menu.add_separator()
         self.view_menu.add_checkbutton(
-            label="Show menubar",
+            label="Show Menubar",
             variable=self.show_menubar,
             command=self.toggle_show_menubar)
         self.view_menu.add_checkbutton(
-            label="Always on top",
+            label="Always on Top",
             variable=self.always_on_top,
             command=self.toggle_always_on_top)
         self.view_menu.add_checkbutton(label="Fullscreen",
@@ -793,9 +897,9 @@ class MainApplication(ttk.Frame):
                                        command=self.toggle_fullscreen,
                                        accelerator=f"{f_accelerator_prefix}F11")
         if platform.system() == "Darwin":
-            self.view_menu.entryconfig("Show menubar", state="disabled")
+            self.view_menu.entryconfig("Show Menubar", state="disabled")
         else:
-            self.view_menu.entryconfig("Show menubar",
+            self.view_menu.entryconfig("Show Menubar",
                                        accelerator=f"{modifier}-M")
 
         self.playback_menu = tk.Menu(self.menubar, tearoff=False)
@@ -806,75 +910,116 @@ class MainApplication(ttk.Frame):
                 command=lambda: self.playpause(),
                 accelerator="Space")
         self.playback_menu.add_command(
-                label="Select next track",
+                label="Select Next Track",
                 command=lambda: self.increment_track(1),
                 accelerator="Down")
         self.playback_menu.add_command(
-                label="Select previous track",
+                label="Select Previous Track",
                 command=lambda: self.increment_track(-1),
                 accelerator="Up")
         self.playback_menu.add_command(
-                label="Select first track",
+                label="Select First Track",
                 command=lambda: self.increment_track(-9999),
                 accelerator="Home")
         self.playback_menu.add_command(
-                label="Select last track",
+                label="Select Last Track",
                 command=lambda: self.increment_track(9999),
                 accelerator="End")
         self.playback_menu.add_separator()
         self.playback_menu.add_command(
-                label="Seek forward",
+                label="Seek Forward",
                 command=lambda: self.increment_playhead(1),
                 accelerator="Right")
         self.playback_menu.add_command(
-                label="Seek backward",
+                label="Seek Backward",
                 command=lambda: self.increment_playhead(-1),
                 accelerator="Left")
         self.playback_menu.add_command(
-                label="Seek to beginning",
+                label="Seek to Beginning",
                 command=lambda: self.increment_playhead(-100),
                 accelerator="w")
         self.playback_menu.add_separator()
         self.playback_menu.add_command(
-                label="Decrease volume",
+                label="Decrease Volume",
                 command=lambda: self.increment_volume(-5),
                 accelerator="Shift-Down")
         self.playback_menu.add_command(
-                label="Increase volume",
+                label="Increase Volume",
                 command=lambda: self.increment_volume(5),
                 accelerator="Shift-Up")
         if self.loaded_album is None:
             self.playback_menu.entryconfig("Play/Pause", state="disabled")
-            self.playback_menu.entryconfig("Select next track",
+            self.playback_menu.entryconfig("Select Next Track",
                                            state="disabled")
-            self.playback_menu.entryconfig("Select previous track",
+            self.playback_menu.entryconfig("Select Previous Track",
                                            state="disabled")
-            self.playback_menu.entryconfig("Select first track",
+            self.playback_menu.entryconfig("Select First Track",
                                            state="disabled")
-            self.playback_menu.entryconfig("Select last track",
+            self.playback_menu.entryconfig("Select Last Track",
                                            state="disabled")
-            self.playback_menu.entryconfig("Seek forward", state="disabled")
-            self.playback_menu.entryconfig("Seek backward", state="disabled")
-            self.playback_menu.entryconfig("Seek to beginning",
+            self.playback_menu.entryconfig("Seek Forward", state="disabled")
+            self.playback_menu.entryconfig("Seek Backward", state="disabled")
+            self.playback_menu.entryconfig("Seek to Beginning",
                                            state="disabled")
         else:
             self.playback_menu.entryconfig("Play/Pause", state="normal")
-            self.playback_menu.entryconfig("Select next track",
+            self.playback_menu.entryconfig("Select Next Track",
                                            state="normal")
-            self.playback_menu.entryconfig("Select previous track",
+            self.playback_menu.entryconfig("Select Previous Track",
                                            state="normal")
-            self.playback_menu.entryconfig("Select first track",
+            self.playback_menu.entryconfig("Select First Track",
                                            state="normal")
-            self.playback_menu.entryconfig("Select last track",
+            self.playback_menu.entryconfig("Select Last Track",
                                            state="normal")
-            self.playback_menu.entryconfig("Seek forward", state="normal")
-            self.playback_menu.entryconfig("Seek backward", state="normal")
-            self.playback_menu.entryconfig("Seek to beginning",
+            self.playback_menu.entryconfig("Seek Forward", state="normal")
+            self.playback_menu.entryconfig("Seek Backward", state="normal")
+            self.playback_menu.entryconfig("Seek to Beginning",
                                            state="normal")
         self.playback_menu.add_separator()
         self.playback_menu.add_checkbutton(label="Repeat",
                                            variable=self.repeat_album,
                                            command=self.toggle_repeat_album)
+        self.playback_menu.add_separator()
+        self.playback_audio_output_menu = tk.Menu(self.playback_menu,
+                                                     tearoff=False)
+        self.playback_menu.add_cascade(
+            menu=self.playback_audio_output_menu, label="Audio Output")
+        try:
+            for option in AudioPlayer.available_audio_outputs:
+                self.playback_audio_output_menu.add_radiobutton(
+                    label=option,
+                    variable=self.audio_output,
+                    value=option,
+                    command=self.set_audio_output)
+        except:
+            pass
+        self.playback_output_format_menu = tk.Menu(self.playback_menu,
+                                                     tearoff=False)
+        self.playback_menu.add_cascade(
+            menu=self.playback_output_format_menu, label="Output Format")
+        try:
+            for option in AudioPlayer.available_output_formats[
+                    "Silent"]:
+                self.playback_output_format_menu.add_radiobutton(
+                    label=option,
+                    variable=self.output_format,
+                    value=option,
+                    command=self.set_output_format)
+                if option not in AudioPlayer.available_output_formats[
+                    self.audio_output.get()]:
+                    self.playback_output_format_menu.entryconfig(
+                        option, state="disabled")
+                    if self.output_format.get() == option:
+                        self.output_format.set("Automatic")
+        except:
+            pass
+
+        #if self.loaded_album is None:
+        #    self.playback_menu.entryconfig("Audio Output", state="disabled")
+        #    self.playback_menu.entryconfig("Output Format", state="disabled")
+        #else:
+        #    self.playback_menu.entryconfig("Audio Output", state="normal")
+        #    self.playback_menu.entryconfig("Output Format", state="normal")
 
         if platform.system() == "Darwin":
             self.window_menu = tk.Menu(self.menubar, name='window')
@@ -958,6 +1103,7 @@ class MainApplication(ttk.Frame):
                                                           HEIGHT/2,
                                                           58*SCALING,
                                                           HEIGHT/2-10*SCALING],
+                                                         outline="",
                                                          fill='black')
         #self.canvas_left_fg = self.canvas.create_text(50, HEIGHT/2,
                                                       #anchor="center")
@@ -973,6 +1119,7 @@ class MainApplication(ttk.Frame):
                                                            HEIGHT/2,
                                                            HEIGHT-58*SCALING,
                                                            HEIGHT/2-10*SCALING],
+                                                          outline="",
                                                           fill='black')
         #self.canvas_right_fg = self.canvas.create_text(HEIGHT-50, HEIGHT/2,
                                                        #anchor="center")
@@ -994,41 +1141,52 @@ class MainApplication(ttk.Frame):
         frame_up.columnconfigure(0, weight=1)
         frame_up.grid_configure(padx=PADDING, pady=PADDING)
         self.title = ttk.Label(frame_up, text="", anchor="center",
-                               font=(FONTNAME, FONTSIZE+8, "bold"),
+                               font=font(FONTSIZE+8, weight="bold"),
                                justify="center",
                                wraplength=WIDTH-HEIGHT-2*PADDING)
         self.title.grid(column=0, row=0, sticky="ew")
         self.artist = ttk.Label(frame_up, text="No Album", anchor="center",
-                                font=(FONTNAME, FONTSIZE+4, "italic"),
+                                font=font(FONTSIZE+4, slant="italic"),
                                 justify="center",
                                 wraplength=WIDTH-HEIGHT-2*PADDING)
         self.artist.grid(column=0, row=1, sticky="ew")
         self.info = ttk.Label(frame_up, text="", anchor="center",
-                              font=(FONTNAME, FONTSIZE-2))
+                              font=font(FONTSIZE-2))
         self.info.grid(column=0, row=3, sticky="ew", pady=(PADDING/2, 0))
 
-        self.style.configure("Treeview.Heading", font=(FONTNAME, FONTSIZE))
-        self.style.configure("Treeview", font=(FONTNAME, FONTSIZE))
+        self.style.configure("Treeview.Heading", font=font(FONTSIZE))
+        self.style.configure("Treeview", font=font(FONTSIZE))
         if SCALING > 1:
-            self.style.configure("Treeview", rowheight=int(13 * (SCALING * 1.6)))
+            self.style.configure("Treeview",
+                                 rowheight=int(13 * (SCALING * 1.6)))
 
         tree_frame = ttk.Frame(frame_right, width=WIDTH-HEIGHT)
         tree_frame.grid(column=0, row=1, sticky="nesw")
         tree_frame.columnconfigure(0, weight=1)
         tree_frame.rowconfigure(0, weight=1)
         self.tree_frame = tree_frame
-        self.style.configure('Treeview', relief="flat", borderwidth=1 * SCALING)
+        self.style.configure('Treeview', relief="flat",
+                             borderwidth=1 * SCALING)
         self.tree = ttk.Treeview(tree_frame, show="tree", selectmode="browse")
-        self.tree.tag_configure('normal', font=(FONTNAME, FONTSIZE))
-        self.tree.tag_configure('bold', font=(FONTNAME, FONTSIZE, "bold"))
-        self.tree.tag_configure('even', background="#ffffff")
-        rgb = [x / 65535 for x in self.winfo_rgb(self.style.lookup(
-            'TFrame', 'background'))]
-        shaded_colour = get_shaded_colour(rgb, 0.97)
-        self.tree.tag_configure('odd', background=shaded_colour)
+        self.tree.tag_configure('normal', font=font(FONTSIZE))
+        self.tree.tag_configure('bold', font=font(FONTSIZE, weight="bold"))
+        #rgb = [x / 65535 for x in self.winfo_rgb(self.style.lookup(
+        #    'TFrame', 'background'))]
+        rgb = [x / 65535 for x in self.winfo_rgb(
+            tk.Entry(tree_frame).cget('background'))]
+        self.tree.tag_configure('even', background=get_hex_colour(rgb))
+        #shaded_colour = get_shaded_colour(rgb, 0.97)
+        #self.tree.tag_configure('odd', background=shaded_colour)
+        brightness = sum(rgb) / 3
+        if brightness < 0.5:
+            brightness += 0.03
+        else:
+            brightness -= 0.03
+        self.tree.tag_configure('odd',
+                                background=get_hex_colour(rgb, brightness))
         self.tree.grid(column=0, row=0, sticky="nesw")
         self.tree["columns"] = ("#", "Title", "Length")
-        bold_font = tkfont.Font(family=FONTNAME, size=FONTSIZE, weight="bold")
+        bold_font = tkfont.Font(family=FONTNAME, size=-FONTSIZE, weight="bold")
         self.tree.column('#0', width=0, stretch=False)
         self.tree.column('#', width=0, anchor="e", stretch=False)
         self.tree.column('Title', width=0, anchor="w", stretch=True)
@@ -1060,13 +1218,14 @@ class MainApplication(ttk.Frame):
                                                mode='determinate', length=100,
                                                maximum=100, value=0)
         self.playhead_slider.place(relheight=1.0, relwidth=1.0)
+        #self.playhead_slider.configure(bg=shaded_colour)
         self.playpause_label = ttk.Label(frame_bottom, text="Paused",
                                          anchor="center",
-                                         font=(FONTNAME, FONTSIZE-4, "bold"),
+                                         font=font(FONTSIZE-4, weight="bold"),
                                          state="disabled")
         self.playpause_label.grid(column=0, row=1, sticky="ns")
         self.playhead_label = ttk.Label(frame_bottom, anchor="center",
-                                        font=(FONTNAME, FONTSIZE, "bold"))
+                                        font=font(FONTSIZE, weight="bold"))
         self.playhead_label.grid(column=1, row=1, sticky="ns")
         self.playhead = None
 
@@ -1079,12 +1238,12 @@ class MainApplication(ttk.Frame):
                                              maximum=100, value=100)
         self.volume_slider.place(relheight=1.0, relwidth=1.0)
         self.volume_label = ttk.Label(frame_bottom, anchor="center",
-                                      font=(FONTNAME, FONTSIZE-4, "bold"))
+                                      font=font(FONTSIZE-4, weight="bold"))
         self.volume = 100
         self.volume_label.grid(column=2, row=1, sticky="ns")
 
         self.trackinfo = ttk.Label(frame_bottom, text="", anchor="center",
-                                   font=(FONTNAME, FONTSIZE-2))
+                                   font=font(FONTSIZE-2))
         self.trackinfo.grid(column=1, row=2, pady=(PADDING/2, 0))
 
 
@@ -1098,7 +1257,8 @@ class MainApplication(ttk.Frame):
         if tkinterdnd2 is not None:
             def load_album(e):
                 self.clear()
-                self.parent.after(1, lambda: self.load_album(e.data.strip("{}")))
+                self.parent.after(1,
+                                  lambda: self.load_album(e.data.strip("{}")))
             self.parent.drop_target_register(tkinterdnd2.DND_FILES)
             self.parent.dnd_bind('<<Drop>>', load_album)
 
@@ -1390,71 +1550,14 @@ class MainApplication(ttk.Frame):
         self.create_menu()
         self.update()
 
-    def load_album(self, path, exact=False):
-        try:
-            self.loaded_album = ZippedAlbum(path, exact=exact)
-        except:
-            self.artist["text"] = "No Album"
-            file = os.path.split(path)[-1]
-            messagebox.showerror(
-                title="Error opening album",
-                message=f'"{file}" does not seem to be a valid Zipped Album!')
-            return
+    def create_player(self, gapless=False):
+        if gapless:
+            self.player = GaplessAudioPlayer(self.audio_output.get(),
+                                             self.output_format.get())
 
-        self.loaded_album.prepare_booklet_pages(self.wait_cover_image)
-        self.show_image()
-        self.title["text"] = self.loaded_album.title
-        self.artist["text"] = self.loaded_album.artist
-        year = self.loaded_album.year
-        n_tracks = len(self.loaded_album.tracklist)
-        playtime = self.loaded_album.playtime
-        self.info["text"] = f"{year} | {n_tracks} tracks | {playtime}"
-
-        normal_font = tkfont.Font(family=FONTNAME, size=FONTSIZE)
-        bold_font = tkfont.Font(family=FONTNAME, size=FONTSIZE, weight="bold")
-        self.title_widths = [normal_font.measure(s["display"][1]) for s in \
-                             self.loaded_album.tracklist]
-        self.title_widths_bold = [bold_font.measure(s["display"][1]) for s in \
-                                  self.loaded_album.tracklist]
-        c0_len = sorted([x["display"][0] for x in self.loaded_album.tracklist],
-                        key=lambda x: len(x))[-1]
-        c0_width = bold_font.measure(c0_len) + CELLPADDING
-        self.tree.column("#", width=c0_width)
-        c2_len = sorted([x["display"][2] for x in self.loaded_album.tracklist],
-                        key=lambda x: len(x))[-1]
-        c2_width = bold_font.measure(c2_len) + CELLPADDING
-        self.tree.column('Length', width=c2_width)
-        # Hack: For some reason the treeview colums do not stretch correctly
-        # initially, so hardcode all column sizes
-        if self.fullscreen.get():
-            size, pos_x, pos_y = self.parent.winfo_geometry().split("+")
-            width, height = [int(x) for x in size.split("x")]
         else:
-            width = WIDTH
-            height = HEIGHT
-        c1_width = width - height - 2 - c0_width - c2_width  # 2=2x1 frame borders
-        self.tree.column('Title', width=c1_width)
-        for c, track in enumerate(self.loaded_album.tracklist):
-            if c % 2 == 1:
-                tags = ("odd")
-            else:
-                tags = ("even")
-            self.tree.insert(parent='', index=c, iid=c, text='', tags=tags,
-                             values=track["display"])
-        self.tree.selection_set(["0"])
-        self.tree.focus("0")
-        self.tree.see("0")
-        self.selected_track_id = 0
-        self.truncate_titles()
-
-        self.track_tooltip.activate()
-
-        print(f"Loaded album: {path}")
-
-        if len(set([type(x) for x in self.loaded_album.tracklist])) == 1:
-            self.player = GaplessAudioPlayer()
-        else:
-            self.player = AudioPlayer()
+            self.player = AudioPlayer(self.audio_output.get(),
+                                      self.output_format.get())
 
         def next_gapless():
             if self.selected_track_id + 1 < len(self.loaded_album.tracklist):
@@ -1562,6 +1665,69 @@ class MainApplication(ttk.Frame):
         self.player.eos_callback = next
         self.player.eos_gapless_callback = next_gapless
 
+    def load_album(self, path, exact=False):
+        try:
+            self.loaded_album = ZippedAlbum(path, exact=exact)
+        except:
+            self.artist["text"] = "No Album"
+            file = os.path.split(path)[-1]
+            messagebox.showerror(
+                title="Error opening album",
+                message=f'"{file}" does not seem to be a valid Zipped Album!')
+            return
+
+        self.loaded_album.prepare_booklet_pages(self.wait_cover_image)
+        self.show_image()
+        self.title["text"] = self.loaded_album.title
+        self.artist["text"] = self.loaded_album.artist
+        year = self.loaded_album.year
+        n_tracks = len(self.loaded_album.tracklist)
+        playtime = self.loaded_album.playtime
+        self.info["text"] = f"{year} | {n_tracks} tracks | {playtime}"
+
+        normal_font = tkfont.Font(family=FONTNAME, size=-FONTSIZE)
+        bold_font = tkfont.Font(family=FONTNAME, size=-FONTSIZE, weight="bold")
+        self.title_widths = [normal_font.measure(s["display"][1]) for s in \
+                             self.loaded_album.tracklist]
+        self.title_widths_bold = [bold_font.measure(s["display"][1]) for s in \
+                                  self.loaded_album.tracklist]
+        c0_len = sorted([x["display"][0] for x in self.loaded_album.tracklist],
+                        key=lambda x: len(x))[-1]
+        c0_width = bold_font.measure(c0_len) + CELLPADDING
+        self.tree.column("#", width=c0_width)
+        c2_len = sorted([x["display"][2] for x in self.loaded_album.tracklist],
+                        key=lambda x: len(x))[-1]
+        c2_width = bold_font.measure(c2_len) + CELLPADDING
+        self.tree.column('Length', width=c2_width)
+        # Hack: For some reason the treeview colums do not stretch correctly
+        # initially, so hardcode all column sizes
+        if self.fullscreen.get():
+            size, pos_x, pos_y = self.parent.winfo_geometry().split("+")
+            width, height = [int(x) for x in size.split("x")]
+        else:
+            width = WIDTH
+            height = HEIGHT
+        c1_width = width - height - 2 - c0_width - c2_width  # 2=2x1 frame borders
+        self.tree.column('Title', width=c1_width)
+        for c, track in enumerate(self.loaded_album.tracklist):
+            if c % 2 == 1:
+                tags = ("odd")
+            else:
+                tags = ("even")
+            self.tree.insert(parent='', index=c, iid=c, text='', tags=tags,
+                             values=track["display"])
+        self.tree.selection_set(["0"])
+        self.tree.focus("0")
+        self.tree.see("0")
+        self.selected_track_id = 0
+        self.truncate_titles()
+
+        self.track_tooltip.activate()
+
+        print(f"Loaded album: {path}")
+
+        gapless = len(set([type(x) for x in self.loaded_album.tracklist])) == 1
+        self.create_player(gapless)
         self.load_track()
         self.track_tooltip.album = self.loaded_album
 
@@ -1616,8 +1782,9 @@ class MainApplication(ttk.Frame):
                     self.tree.column('0')['width'] - \
                     self.tree.column('2')['width'] - CELLPADDING
         tracks = [x["display"] for x in self.loaded_album.tracklist]
-        normal_font = tkfont.Font(family=FONTNAME, size=FONTSIZE)
-        bold_font = tkfont.Font(family=FONTNAME, size=FONTSIZE, weight="bold")
+        normal_font = tkfont.Font(family=FONTNAME, size=-FONTSIZE)
+        bold_font = tkfont.Font(family=FONTNAME, size=-FONTSIZE,
+                                weight="bold")
         for c, track in enumerate(tracks):
             track = track[:]
             text_width = self.title_widths[c]
@@ -1667,7 +1834,7 @@ class MainApplication(ttk.Frame):
             samplerate_str = ""
         try:
             bitdepth = track["streaminfo"]["bit_depth"]
-            if self.player.audio_driver == "OpenALDriver" and bitdepth > 16:
+            if self.player.output_format == "16-bit" and bitdepth > 16:
                 bitdepth_str = f"{bitdepth}→16 bit • "
             else:
                 bitdepth_str = f"{bitdepth} bit • "
@@ -1966,6 +2133,45 @@ class MainApplication(ttk.Frame):
         self.config.set("PLAYBACK", "repeat",
                         str(int(self.repeat_album.get())))
 
+    def set_audio_output(self, event=None):
+        if self.loaded_album:
+            gapless = isinstance(self.player, GaplessAudioPlayer)
+            was_playing = False
+            if self.player.is_playing:
+                start = time.perf_counter()
+                self.player.pause()
+                pause_time = self.player.time
+                was_playing = True
+            del self.player
+            self.create_player(gapless=gapless)
+            self.load_track()
+            if was_playing:
+                self.play()
+                self.player.seek(pause_time + (time.perf_counter() - start))
+        if not self.config.has_section("PLAYBACK"):
+            self.config.add_section("PLAYBACK")
+        self.config.set("PLAYBACK", "audio_output",
+                        self.audio_output.get())
+
+    def set_output_format(self, event=None):
+        if self.loaded_album:
+            gapless = isinstance(self.player, GaplessAudioPlayer)
+            was_playing = False
+            if self.player.is_playing:
+                start = time.perf_counter()
+                self.player.pause()
+                pause_time = self.player.time
+                was_playing = True
+            del self.player
+            self.create_player(gapless=gapless)
+            if was_playing:
+                self.play()
+                self.player.seek(pause_time + (time.perf_counter() - start))
+        if not self.config.has_section("PLAYBACK"):
+            self.config.add_section("PLAYBACK")
+        self.config.set("PLAYBACK", "output_format",
+                        self.output_format.get())
+
     def set_title(self):
         title = "ZAP"
         if self.loaded_album is not None:
@@ -1998,6 +2204,7 @@ class MainApplication(ttk.Frame):
         self.parent.destroy()
 
 def run():
+
     if platform.system() == "Windows":
         import ctypes
         try:
@@ -2023,8 +2230,13 @@ def run():
     else:
         root = tk.Tk()
     root.geometry(f"{WIDTH}x{HEIGHT}+0+0")
-    dpi = root.winfo_fpixels('1i')
-    root.tk.call('tk', 'scaling', SCALING * (dpi / 72.0))
+    if tk.TclVersion >= 9:
+        global _TK_SCALING
+        _TK_SCALING = float(root.tk.call('tk', 'scaling'))
+        root.tk.call('tk', 'scaling', SCALING)
+    else:
+        dpi = root.winfo_fpixels('1i')
+        root.tk.call('tk', 'scaling', SCALING * (dpi / 72.0))
     root.withdraw()
     app = MainApplication(root, padding="0 0 0 0")
     app.set_title()
@@ -2063,6 +2275,7 @@ def run():
     try:
         global AudioPlayer, GaplessAudioPlayer
         from .player import AudioPlayer, GaplessAudioPlayer
+
     except RuntimeError as e:
         if "ffmpeg" in repr(e).lower():
             messagebox.showerror(title="FFmpeg error",
@@ -2070,6 +2283,9 @@ def run():
                                          "required FFmpeg libraries!"
                                          "\n\nThe application will close now.")
             sys.exit()
+
+
+    app.create_menu()
 
     try:
         if "--exact" in sys.argv:
