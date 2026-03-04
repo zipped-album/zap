@@ -65,7 +65,7 @@ def _discover_available_audio_outputs():
                 Create a PulseAudio sample spec from pyglet audio format.
                 """
 
-                from pulse import lib_pulseaudio as pa
+                from pyglet.media.drivers.pulse import lib_pulseaudio as pa
 
                 _FORMATS = {
                     ('little', 8, 'int'):    pa.PA_SAMPLE_U8,
@@ -110,12 +110,12 @@ def _discover_available_audio_outputs():
         driver = directsound.create_audio_driver()
         d = {"driver": "directsound",
              "int32": False,
-             "flaot32": False}
+             "float32": False}
 
         # Monkey patch support for 24-bit and 32-bit float
         try:
             def _create_wave_format(audio_format):
-                from directsound import lib_dsound as lib
+                from pyglet.media.drivers.directsound import lib_dsound as lib
 
                 if audio_format.channels > 2 or \
                         audio_format.sample_size not in (8, 16, 24, 32):
@@ -149,15 +149,15 @@ def _discover_available_audio_outputs():
 
     try:  #XAudio2
         from pyglet.media.drivers import xaudio2
-        driver = directsound.create_audio_driver()
+        driver = xaudio2.create_audio_driver()
         d = {"driver": "xaudio2",
              "int32": False,
-             "flaot32": False}
+             "float32": False}
 
         # Monkey patch to support 24-bit and 32-bit float
         try:
-            def create_xa2_waveformat(audio_format):
-                from xaudio2 import lib_xaudio2 as lib
+            def _create_xa2_waveformat(audio_format):
+                from pyglet.media.drivers.xaudio2 import lib_xaudio2 as lib
 
                 if audio_format.channels > 2 or \
                         audio_format.sample_size not in (8, 16, 24, 32):
@@ -176,7 +176,7 @@ def _discover_available_audio_outputs():
                 wfx.nAvgBytesPerSec = wfx.nSamplesPerSec * wfx.nBlockAlign
                 return wfx
 
-            xaudio2.interface._create_xa2_waveformat = _create_x2a_waveformat
+            xaudio2.interface._create_xa2_waveformat = _create_xa2_waveformat
 
             d["int32"] =  True
             d["float32"] = True
@@ -375,6 +375,10 @@ class FFmpegSource(FFmpegSource):
                     channels=channels_out,
                     sample_size=self._AV_BITS[self.tgt_format],
                     sample_rate=info.sample_rate)
+                if self.tgt_format == AV_SAMPLE_FMT_FLT:
+                    self.audio_format.sample_type = "float"
+                else:
+                    self.audio_format.sample_type = "int"
 
                 self.audio_convert_ctx = self.get_formatted_swr_context(
                     channel_output, sample_rate, channel_input, sample_format)
