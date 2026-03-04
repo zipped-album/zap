@@ -19,6 +19,7 @@ import colorsys
 import platform
 import configparser
 import dateutil.parser
+
 try:
     import tkinter as tk
     import tkinter.ttk as ttk
@@ -32,16 +33,42 @@ except ModuleNotFoundError:
     print("Error: Python not configured for Tk!")
     sys.exit()
 
-try:
-    probe = tk.Tcl()
-    probe.withdraw()
-    probe.call('package', 'require', 'Tk')
-    probe.call('package', 'require', 'tkdnd')
-    probe.destroy()
-    import tkinterdnd2
-except:
-    tkinterdnd2 = None
+def verify_tkdnd_safe():
+    """Check if tkinterdnd2 can be fully initialized.
 
+    Returns the tkinterdnd2 module if safe, else None.
+
+    """
+
+    import subprocess
+
+    check_code = """
+import sys
+try:
+    import tkinterdnd2
+    root = tkinterdnd2.TkinterDnD.Tk()
+    root.withdraw()
+    root.destroy()
+    sys.exit(0)  # Success
+except Exception as e:
+    sys.exit(1)  # Failure
+"""
+    try:
+        # Run the check in an isolated process
+        result = subprocess.run(
+            [sys.executable, "-c", check_code],
+            capture_output=True,
+            timeout=5 # Prevent hanging on some Intel Mac builds
+        )
+
+        if result.returncode == 0:
+            import tkinterdnd2
+            return tkinterdnd2
+    except Exception:
+        pass
+    return None
+
+tkinterdnd2 = verify_tkdnd_safe()
 
 from PIL import ImageTk, Image
 from PIL import __version__ as pil_version
@@ -2200,7 +2227,6 @@ class MainApplication(ttk.Frame):
         #self.config.set("GENERAL", "window_geometry", geometry)
         self.write_config()
         self.player = None
-        del self.player
         self.parent.destroy()
 
 def run():
@@ -2275,6 +2301,8 @@ def run():
     try:
         global AudioPlayer, GaplessAudioPlayer
         from .player import AudioPlayer, GaplessAudioPlayer
+        app.audio_output.set(
+            list(AudioPlayer.available_audio_outputs.keys())[0])
 
     except RuntimeError as e:
         if "ffmpeg" in repr(e).lower():
