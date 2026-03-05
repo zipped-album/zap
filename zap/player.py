@@ -36,7 +36,7 @@ def _discover_available_audio_outputs():
 
     try:  # OpenAL
         from pyglet.media.drivers import openal
-        driver = openal.create_audio_driver()
+        #driver = openal.create_audio_driver()
 
         # Monkey patch support for 32-bit float
         float32 = bool(
@@ -53,7 +53,7 @@ def _discover_available_audio_outputs():
 
     try:  # PulseAudio
         from pyglet.media.drivers import pulse
-        driver = pulse.create_audio_driver()
+        #driver = pulse.create_audio_driver()
         d = {"driver": "pulse",
              "int32": False,
              "float32": False}
@@ -107,7 +107,7 @@ def _discover_available_audio_outputs():
 
     try:  # DirectSound
         from pyglet.media.drivers import directsound
-        driver = directsound.create_audio_driver()
+        #driver = directsound.create_audio_driver()
         d = {"driver": "directsound",
              "int32": False,
              "float32": False}
@@ -149,14 +149,14 @@ def _discover_available_audio_outputs():
 
     try:  #XAudio2
         from pyglet.media.drivers import xaudio2
-        driver = xaudio2.create_audio_driver()
+        #driver = xaudio2.create_audio_driver()
         d = {"driver": "xaudio2",
              "int32": False,
              "float32": False}
 
         # Monkey patch to support 24-bit and 32-bit float
         try:
-            def _create_xa2_waveformat(audio_format):
+            def create_xa2_waveformat(audio_format):
                 from pyglet.media.drivers.xaudio2 import lib_xaudio2 as lib
 
                 if audio_format.channels > 2 or \
@@ -176,7 +176,7 @@ def _discover_available_audio_outputs():
                 wfx.nAvgBytesPerSec = wfx.nSamplesPerSec * wfx.nBlockAlign
                 return wfx
 
-            xaudio2.interface._create_xa2_waveformat = _create_xa2_waveformat
+            xaudio2.interface.create_xa2_waveformat = create_xa2_waveformat
 
             d["int32"] =  True
             d["float32"] = True

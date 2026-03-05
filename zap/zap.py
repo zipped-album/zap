@@ -154,7 +154,10 @@ def _frame_coords(self, frame_id, x, y, r):
 tk.Canvas.frame_coords = _frame_coords
 
 def _px(size):
-    return -round(size / _TK_SCALING)
+    if tk.TclVersion >= 9:
+        return -round(size / _TK_SCALING)
+    else:
+        return size
 
 def font(size, weight="normal", slant="roman"):
     """
