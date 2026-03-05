@@ -155,7 +155,7 @@ tk.Canvas.frame_coords = _frame_coords
 
 def _px(size):
     if tk.TclVersion >= 9:
-        return -round(size / _TK_SCALING)
+        return round(size / _TK_SCALING)
     else:
         return size
 
@@ -1216,7 +1216,7 @@ class MainApplication(ttk.Frame):
                                 background=get_hex_colour(rgb, brightness))
         self.tree.grid(column=0, row=0, sticky="nesw")
         self.tree["columns"] = ("#", "Title", "Length")
-        bold_font = tkfont.Font(family=FONTNAME, size=-FONTSIZE, weight="bold")
+        bold_font = tkfont.Font(family=FONTNAME, size=FONTSIZE, weight="bold")
         self.tree.column('#0', width=0, stretch=False)
         self.tree.column('#', width=0, anchor="e", stretch=False)
         self.tree.column('Title', width=0, anchor="w", stretch=True)
@@ -1715,8 +1715,8 @@ class MainApplication(ttk.Frame):
         playtime = self.loaded_album.playtime
         self.info["text"] = f"{year} | {n_tracks} tracks | {playtime}"
 
-        normal_font = tkfont.Font(family=FONTNAME, size=-FONTSIZE)
-        bold_font = tkfont.Font(family=FONTNAME, size=-FONTSIZE, weight="bold")
+        normal_font = tkfont.Font(family=FONTNAME, size=FONTSIZE)
+        bold_font = tkfont.Font(family=FONTNAME, size=FONTSIZE, weight="bold")
         self.title_widths = [normal_font.measure(s["display"][1]) for s in \
                              self.loaded_album.tracklist]
         self.title_widths_bold = [bold_font.measure(s["display"][1]) for s in \
@@ -1812,8 +1812,8 @@ class MainApplication(ttk.Frame):
                     self.tree.column('0')['width'] - \
                     self.tree.column('2')['width'] - CELLPADDING
         tracks = [x["display"] for x in self.loaded_album.tracklist]
-        normal_font = tkfont.Font(family=FONTNAME, size=-FONTSIZE)
-        bold_font = tkfont.Font(family=FONTNAME, size=-FONTSIZE,
+        normal_font = tkfont.Font(family=FONTNAME, size=FONTSIZE)
+        bold_font = tkfont.Font(family=FONTNAME, size=FONTSIZE,
                                 weight="bold")
         for c, track in enumerate(tracks):
             track = track[:]
