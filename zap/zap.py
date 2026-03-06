@@ -1068,12 +1068,13 @@ class MainApplication(ttk.Frame):
     def show_context_menu(self, event):
         try:
             self.menu.tk_popup(event.x_root, event.y_root)
+            self.menu.grab_release()
         except:
             pass
 
     def close_context_menu(self, event):
         try:
-            if self.menu_winfo.exists():
+            if self.menu.winfo_exists():
                 x = self.menu.winfo_x()
                 y = self.menu.winfo_y()
                 w = self.menu.winfo_width()
@@ -1081,7 +1082,6 @@ class MainApplication(ttk.Frame):
                 if not (x <= event.x_root <= x + w and \
                         y <= event.y_root <= y + h):
                     self.menu_unpost()
-                    self.menu.grab_release()
         except:
             pass
 
