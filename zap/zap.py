@@ -740,12 +740,7 @@ class MainApplication(ttk.Frame):
             initialdir = os.getcwd()
         directory = filedialog.askdirectory(initialdir=initialdir)
         if directory:
-            try:
-                self.make_album(directory)
-            except AssertionError:
-                print("Not a Zipped Album")
-            except:
-                print("Unknown error")
+            self.make_album(directory)
 
     def load_config(self):
         config_file = os.path.join(get_settings_folder(), "config")
@@ -1028,8 +1023,7 @@ class MainApplication(ttk.Frame):
         self.playback_menu.add_cascade(
             menu=self.playback_output_format_menu, label="Output Format")
         try:
-            for option in AudioPlayer.available_output_formats[
-                    "Silent"]:
+            for option in AudioPlayer.available_output_formats["Silent"]:
                 self.playback_output_format_menu.add_radiobutton(
                     label=option,
                     variable=self.output_format,
@@ -1216,7 +1210,7 @@ class MainApplication(ttk.Frame):
                                 background=get_hex_colour(rgb, brightness))
         self.tree.grid(column=0, row=0, sticky="nesw")
         self.tree["columns"] = ("#", "Title", "Length")
-        bold_font = tkfont.Font(family=FONTNAME, size=FONTSIZE, weight="bold")
+        #bold_font = tkfont.Font(family=FONTNAME, size=FONTSIZE, weight="bold")
         self.tree.column('#0', width=0, stretch=False)
         self.tree.column('#', width=0, anchor="e", stretch=False)
         self.tree.column('Title', width=0, anchor="w", stretch=True)
@@ -1715,8 +1709,9 @@ class MainApplication(ttk.Frame):
         playtime = self.loaded_album.playtime
         self.info["text"] = f"{year} | {n_tracks} tracks | {playtime}"
 
-        normal_font = tkfont.Font(family=FONTNAME, size=FONTSIZE)
-        bold_font = tkfont.Font(family=FONTNAME, size=FONTSIZE, weight="bold")
+        normal_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE))
+        bold_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE),
+                                weight="bold")
         self.title_widths = [normal_font.measure(s["display"][1]) for s in \
                              self.loaded_album.tracklist]
         self.title_widths_bold = [bold_font.measure(s["display"][1]) for s in \
@@ -1812,8 +1807,8 @@ class MainApplication(ttk.Frame):
                     self.tree.column('0')['width'] - \
                     self.tree.column('2')['width'] - CELLPADDING
         tracks = [x["display"] for x in self.loaded_album.tracklist]
-        normal_font = tkfont.Font(family=FONTNAME, size=FONTSIZE)
-        bold_font = tkfont.Font(family=FONTNAME, size=FONTSIZE,
+        normal_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE))
+        bold_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE),
                                 weight="bold")
         for c, track in enumerate(tracks):
             track = track[:]
@@ -2164,6 +2159,16 @@ class MainApplication(ttk.Frame):
                         str(int(self.repeat_album.get())))
 
     def set_audio_output(self, event=None):
+        for output_format in AudioPlayer.available_output_formats["Silent"]:
+            if output_format in AudioPlayer.available_output_formats[
+                    self.audio_output.get()]:
+                self.playback_output_format_menu.entryconfig(output_format,
+                                                             state="normal")
+            else:
+                self.playback_output_format_menu.entryconfig(output_format,
+                                                             state="disabled")
+                if output_format == self.output_format.get():
+                    self.output_format.set("Automatic")
         if self.loaded_album:
             gapless = isinstance(self.player, GaplessAudioPlayer)
             was_playing = False
