@@ -1070,12 +1070,20 @@ class MainApplication(ttk.Frame):
             self.menu.tk_popup(event.x_root, event.y_root)
         except:
             pass
-        finally:
-            if platform.system() != "Linux":
-                try:
+
+    def close_context_menu(self, event):
+        try:
+            if self.menu_winfo.exists():
+                x = self.menu.winfo_x()
+                y = self.menu.winfo_y()
+                w = self.menu.winfo_width()
+                h = self.menu.winfo_height()
+                if not (x <= event.x_root <= x + w and \
+                        y <= event.y_root <= y + h):
+                    self.menu_unpost()
                     self.menu.grab_release()
-                except:
-                    pass
+        except:
+            pass
 
     def change_menu_state(self, state):
         self.menubar.entryconfig("File", state=state)
@@ -1391,10 +1399,15 @@ class MainApplication(ttk.Frame):
                          lambda e: self.switch_image(-9999))
 
         # Mouse (global)
-        if platform.system() == "Darwin":  # right mouse button on Mac is 2
-            self.parent.bind("<Button-2>", self.show_context_menu)
+        self.parent.bind("<Button-1>", self.close_context_menu)
+        if platform.system() == "Darwin":
+            if tk.TclVersion >= 9:
+                self.parent.bind("<Button-3>", self.show_context_menu)
+            else:
+                self.parent.bind("<Button-2>", self.show_context_menu)
         else:
             self.parent.bind("<Button-3>", self.show_context_menu)
+
 
         # Mouse (specific widgets)
         self.canvas.bind("<Enter>", lambda e: self.add_arrows())
