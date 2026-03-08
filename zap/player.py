@@ -30,35 +30,98 @@ from pyglet.media.codecs.ffmpeg import *
 from .__init__ import __author__, __version__
 
 
-
 def _discover_available_audio_outputs():
     available_audio_outputs = {}
 
-    try:  # OpenAL
-        from pyglet.media.drivers import openal
-        #driver = openal.create_audio_driver()
-
-        # Monkey patch support for 32-bit float
-        float32 = bool(
-            openal.lib_openal.alIsExtensionPresent(b"AL_EXT_float32"))
-        if float32:
-            openal.interface.OpenALBuffer._format_map[(2, 32)] = 65553
-        d = {"driver": "openal",
+    try:  #XAudio2
+        from pyglet.media.drivers import xaudio2
+        d = {"driver": "xaudio2",
              "int32": False,
-             "float32": float32}
-        available_audio_outputs["OpenAL"] = d
+             "float32": False}
+
+        # Monkey patch support for 32-bit int and float
+        try:
+            def create_xa2_waveformat(audio_format):
+                from pyglet.media.drivers.xaudio2 import lib_xaudio2 as lib
+
+                if audio_format.channels > 2 or \
+                        audio_format.sample_size not in (8, 16, 32):
+                    raise MediaException(
+                        f'Unsupported audio format: {audio_format}')
+
+                wfx = lib.WAVEFORMATEX()
+                if audio_format.sample_type == "float":
+                    wfx.wFormatTag = 3
+                else:
+                    wfx.wFormatTag = lib.WAVE_FORMAT_PCM
+                wfx.nChannels = audio_format.channels
+                wfx.nSamplesPerSec = audio_format.sample_rate
+                wfx.wBitsPerSample = audio_format.sample_size
+                wfx.nBlockAlign = wfx.wBitsPerSample * wfx.nChannels // 8
+                wfx.nAvgBytesPerSec = wfx.nSamplesPerSec * wfx.nBlockAlign
+                return wfx
+
+            xaudio2.interface.create_xa2_waveformat = create_xa2_waveformat
+
+            d["int32"] =  True
+            d["float32"] = True
+
+        except:
+            pass
+
+        available_audio_outputs["XAudio2"] = d
+
+    except:
+        pass
+
+    try:  # DirectSound
+        from pyglet.media.drivers import directsound
+        d = {"driver": "directsound",
+             "int32": False,
+             "float32": False}
+
+        # Monkey patch support for 32-bit int and float
+        try:
+            def _create_wave_format(audio_format):
+                from pyglet.media.drivers.directsound import lib_dsound as lib
+
+                if audio_format.channels > 2 or \
+                        audio_format.sample_size not in (8, 16, 32):
+                    raise MediaException(
+                        f'Unsupported audio format: {audio_format}')
+
+                wfx = lib.WAVEFORMATEX()
+                if audio_format.sample_type == "float":
+                    wfx.wFormatTag = 3
+                else:
+                    wfx.wFormatTag = lib.WAVE_FORMAT_PCM
+                wfx.nChannels = audio_format.channels
+                wfx.nSamplesPerSec = audio_format.sample_rate
+                wfx.wBitsPerSample = audio_format.sample_size
+                wfx.nBlockAlign = wfx.wBitsPerSample * wfx.nChannels // 8
+                wfx.nAvgBytesPerSec = wfx.nSamplesPerSec * wfx.nBlockAlign
+                return wfx
+
+            directsound.interface._create_wave_format = _create_wave_format
+
+            d["int32"] =  True
+            d["float32"] = True
+
+        except:
+              pass
+
+        available_audio_outputs["DirectSound"] = d
 
     except:
         pass
 
     try:  # PulseAudio
         from pyglet.media.drivers import pulse
-        #driver = pulse.create_audio_driver()
         d = {"driver": "pulse",
              "int32": False,
              "float32": False}
 
-        # Monkey patch support for 32-bit float
+        # Monkey patch support for 32-bit int and float
         try:
             def create_sample_spec(self, audio_format):
                 """
@@ -105,90 +168,66 @@ def _discover_available_audio_outputs():
     except:
         pass
 
-    try:  # DirectSound
-        from pyglet.media.drivers import directsound
-        #driver = directsound.create_audio_driver()
-        d = {"driver": "directsound",
-             "int32": False,
-             "float32": False}
+    try:  # OpenAL
+        from pyglet.media.drivers import openal
 
-        # Monkey patch support for 24-bit and 32-bit float
-        try:
-            def _create_wave_format(audio_format):
-                from pyglet.media.drivers.directsound import lib_dsound as lib
+        # Monkey patch support for 32-bit int and float if extensions available
+        _format_map = {
+            (1, 8, 'int'):openal.lib_openal.AL_FORMAT_MONO8,
+            (1, 16, 'int'):openal.lib_openal.AL_FORMAT_MONO16,
+            (2, 8, 'int'):openal.lib_openal.AL_FORMAT_STEREO8,
+            (2, 16, 'int'):openal.lib_openal.AL_FORMAT_STEREO16,
+        }
 
-                if audio_format.channels > 2 or \
-                        audio_format.sample_size not in (8, 16, 24, 32):
-                    raise MediaException(
-                        f'Unsupported audio format: {audio_format}')
+        int32 = bool(
+            openal.lib_openal.alIsExtensionPresent(b"AL_EXT_32bit_formats"))
+        if int32:
+            _format_map[(1, 32, 'int')] = openal.lib_openal.alGetEnumValue(
+                b"AL_FORMAT_MONO_I32")
+            _format_map[(2, 32, 'int')] = openal.lib_openal.alGetEnumValue(
+                b"AL_FORMAT_STEREO_I32")
 
-                wfx = lib.WAVEFORMATEX()
-                if audio_format.sample_type == "float":
-                    wfx.wFormatTag = 3
-                else:
-                    wfx.wFormatTag = lib.WAVE_FORMAT_PCM
-                wfx.nChannels = audio_format.channels
-                wfx.nSamplesPerSec = audio_format.sample_rate
-                wfx.wBitsPerSample = audio_format.sample_size
-                wfx.nBlockAlign = wfx.wBitsPerSample * wfx.nChannels // 8
-                wfx.nAvgBytesPerSec = wfx.nSamplesPerSec * wfx.nBlockAlign
-                return wfx
+        float32 = bool(
+            openal.lib_openal.alIsExtensionPresent(b"AL_EXT_float32"))
+        if float32:
+            _format_map[(1, 32, 'float')] = openal.lib_openal.alGetEnumValue(
+                b"AL_FORMAT_MONO_FLOAT32")
+            _format_map[(2, 32, 'float')] = openal.lib_openal.alGetEnumValue(
+                b"AL_FORMAT_STEREO_FLOAT32")
 
-            directsound.interface._create_wave_format = _create_wave_format
+        def data(self, audio_data, audio_format):
+            from pyglet.media.drivers.openal import lib_openal as al
 
-            d["int32"] =  True
-            d["float32"] = True
+            assert self.is_valid
 
-        except:
-              pass
+            try:
+                al_format = self._format_map[(audio_format.channels,
+                                              audio_format.sample_size,
+                                              audio_format.sample_type)]
+            except KeyError:
+                raise MediaException(
+                    f"OpenAL does not support '{audio_format.sample_size}bit ",
+                    f"{audio_format.sample_type}' audio.")
 
-        available_audio_outputs["DirectSound"] = d
+            al.alBufferData(self.al_name,
+                            al_format,
+                            audio_data.pointer,
+                            audio_data.length,
+                            audio_format.sample_rate)
+            self._check_error('Failed to add data to buffer.')
 
-    except:
-        pass
+        openal.interface.OpenALBuffer._format_map = _format_map
+        openal.interface.OpenALBuffer.data = data
 
-    try:  #XAudio2
-        from pyglet.media.drivers import xaudio2
-        #driver = xaudio2.create_audio_driver()
-        d = {"driver": "xaudio2",
-             "int32": False,
-             "float32": False}
-
-        # Monkey patch to support 24-bit and 32-bit float
-        try:
-            def create_xa2_waveformat(audio_format):
-                from pyglet.media.drivers.xaudio2 import lib_xaudio2 as lib
-
-                if audio_format.channels > 2 or \
-                        audio_format.sample_size not in (8, 16, 24, 32):
-                    raise MediaException(
-                        f'Unsupported audio format: {audio_format}')
-
-                wfx = lib.WAVEFORMATEX()
-                if audio_format.sample_type == "float":
-                    wfx.wFormatTag = 3
-                else:
-                    wfx.wFormatTag = lib.WAVE_FORMAT_PCM
-                wfx.nChannels = audio_format.channels
-                wfx.nSamplesPerSec = audio_format.sample_rate
-                wfx.wBitsPerSample = audio_format.sample_size
-                wfx.nBlockAlign = wfx.wBitsPerSample * wfx.nChannels // 8
-                wfx.nAvgBytesPerSec = wfx.nSamplesPerSec * wfx.nBlockAlign
-                return wfx
-
-            xaudio2.interface.create_xa2_waveformat = create_xa2_waveformat
-
-            d["int32"] =  True
-            d["float32"] = True
-
-        except:
-            pass
-
-        available_audio_outputs["XAudio2"] = d
+        d = {"driver": "openal",
+             "int32": int32,
+             "float32": float32}
+        available_audio_outputs["OpenAL"] = d
 
     except:
         pass
 
+    # Add Silent output
     available_audio_outputs["Silent"] = {"driver": "silent",
                                          "int32": True,
                                          "float32": True}
@@ -196,17 +235,6 @@ def _discover_available_audio_outputs():
     return available_audio_outputs
 
 AVAILABLE_AUDIO_OUTPUTS = _discover_available_audio_outputs()
-
-def _discover_available_output_formats():
-    available_output_formats = {}
-    for output in AVAILABLE_AUDIO_OUTPUTS:
-        d = {"Automatic": 0, "16-bit": AV_SAMPLE_FMT_S16}
-        if AVAILABLE_AUDIO_OUTPUTS[output]["float32"]:
-            d["32-bit float"] = AV_SAMPLE_FMT_FLT
-        available_output_formats[output] = d
-    return available_output_formats
-
-AVAILABLE_OUTPUT_FORMATS = _discover_available_output_formats()
 
 
 class FFmpegSource(FFmpegSource):
@@ -449,7 +477,12 @@ class AudioPlayer:
     """
 
     available_audio_outputs = AVAILABLE_AUDIO_OUTPUTS
-    available_output_formats = AVAILABLE_OUTPUT_FORMATS
+    available_output_formats = {}
+    for output in AVAILABLE_AUDIO_OUTPUTS:
+        d = {"Automatic": 0, "16-bit": AV_SAMPLE_FMT_S16}
+        if AVAILABLE_AUDIO_OUTPUTS[output]["float32"]:
+            d["32-bit float"] = AV_SAMPLE_FMT_FLT
+        available_output_formats[output] = d
 
     def __init__(self, audio_output, output_format):
         """Create an AudioPlayer object.
@@ -459,7 +492,7 @@ class AudioPlayer:
         audio_output : str
             the pyglet audio driver to use ('XAudio2', 'DirectSound', 'OpenAL',
             'PulseAudio')
-        audio_format : int
+        audio_format : str
             the FFmpeg output format to use ("Automatic", "16-bit",
             "32-bit float")
 
@@ -646,7 +679,7 @@ class GaplessAudioPlayer(AudioPlayer):
         audio_output : str
             the pyglet audio driver to use ('XAudio2', 'DirectSound', 'OpenAL',
             'PulseAudio')
-        audio_format : int
+        audio_format : str
             the FFmpeg output format to use ("Automatic", "16-bit",
             "32-bit float")
 
