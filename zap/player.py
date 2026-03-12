@@ -381,9 +381,16 @@ class FFmpegSource(FFmpegSource):
                     raise FFmpegException('Audio format not supported.')
 
                 if not self.fixed_tgt_format:  # Automatic
-                    if sample_bits == 32:
-                        d = pyglet.media.get_audio_driver()
-                        active_output = type(d).__name__.replace("Driver", "")
+                    d = pyglet.media.get_audio_driver()
+                    active_output = type(d).__name__.replace("Driver", "")
+                    if sample_format in (AV_SAMPLE_FMT_FLT,
+                                         AV_SAMPLE_FMT_FLTP):
+                        if AVAILABLE_AUDIO_OUTPUTS[active_output]["float32"]:
+                            self.tgt_format = AV_SAMPLE_FMT_FLT
+                        else:
+                            self.tgt_format = AV_SAMPLE_FMT_S16
+                    elif sample_format in (AV_SAMPLE_FMT_S32,
+                                           AV_SAMPLE_FMT_S32P):
                         if AVAILABLE_AUDIO_OUTPUTS[active_output]["int32"]:
                             self.tgt_format = AV_SAMPLE_FMT_S32
                         elif AVAILABLE_AUDIO_OUTPUTS[active_output]["float32"]:
