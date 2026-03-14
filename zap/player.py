@@ -179,6 +179,7 @@ def _discover_available_audio_outputs():
             (2, 16, 'int'):openal.lib_openal.AL_FORMAT_STEREO16,
         }
 
+        driver = openal.create_audio_driver()
         int32 = bool(
             openal.lib_openal.alIsExtensionPresent(b"AL_EXT_32bit_formats"))
         if int32:
@@ -194,6 +195,8 @@ def _discover_available_audio_outputs():
                 b"AL_FORMAT_MONO_FLOAT32")
             _format_map[(2, 32, 'float')] = openal.lib_openal.alGetEnumValue(
                 b"AL_FORMAT_STEREO_FLOAT32")
+
+        driver.delete()
 
         def data(self, audio_data, audio_format):
             from pyglet.media.drivers.openal import lib_openal as al
