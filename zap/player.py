@@ -1,7 +1,9 @@
 import os
 import sys
+import math
 import platform
 import tempfile
+from ctypes import c_double, c_uint64, c_void_p
 
 if platform.system() == "Windows":
     path = "PATH"
@@ -30,8 +32,8 @@ from pyglet.media.codecs.ffmpeg import *
 from .__init__ import __author__, __version__
 
 
-def _discover_available_audio_outputs():
-    available_audio_outputs = {}
+def _discover_available_audio_systems():
+    available_audio_systems = {}
 
     try:  #XAudio2
         from pyglet.media.drivers import xaudio2
@@ -69,7 +71,7 @@ def _discover_available_audio_outputs():
         except:
             pass
 
-        available_audio_outputs["XAudio2"] = d
+        available_audio_systems["XAudio2"] = d
 
     except:
         pass
@@ -110,7 +112,7 @@ def _discover_available_audio_outputs():
         except:
               pass
 
-        available_audio_outputs["DirectSound"] = d
+        available_audio_systems["DirectSound"] = d
 
     except:
         pass
@@ -163,7 +165,7 @@ def _discover_available_audio_outputs():
         except:
             pass
 
-        available_audio_outputs["PulseAudio"] = d
+        available_audio_systems["PulseAudio"] = d
 
     except:
         pass
@@ -225,19 +227,19 @@ def _discover_available_audio_outputs():
         d = {"driver": "openal",
              "int32": int32,
              "float32": float32}
-        available_audio_outputs["OpenAL"] = d
+        available_audio_systems["OpenAL"] = d
 
     except:
         pass
 
     # Add Silent output
-    available_audio_outputs["Silent"] = {"driver": "silent",
+    available_audio_systems["Silent"] = {"driver": "silent",
                                          "int32": True,
-                                         "float32": True}
+                                         "float32": False}
 
-    return available_audio_outputs
+    return available_audio_systems
 
-AVAILABLE_AUDIO_OUTPUTS = _discover_available_audio_outputs()
+AVAILABLE_AUDIO_SYSTEMS = _discover_available_audio_systems()
 
 
 class FFmpegSource(FFmpegSource):
@@ -288,6 +290,9 @@ class FFmpegSource(FFmpegSource):
 
 
     fixed_tgt_format = 0  # 0, None or False for automatic
+    fixed_tgt_sample_rate = 0  # 0, None or False for automatic
+    fixed_tgt_channels = 0  # 0, None or False for automatic
+    hq_resampling = False
 
     _AV_BITS = {AV_SAMPLE_FMT_U8: 8, AV_SAMPLE_FMT_U8P: 8,
                 AV_SAMPLE_FMT_S16: 16, AV_SAMPLE_FMT_S16P: 16,
@@ -369,9 +374,24 @@ class FFmpegSource(FFmpegSource):
                 self._audio_stream = stream
                 self._audio_stream_index = i
 
-                channel_input = self._get_default_channel_layout(
-                    info.channels)
-                channels_out = min(2, info.channels)
+                if self.fixed_tgt_channels:
+                    tgt_channels = self.fixed_tgt_channels
+                else:
+                    tgt_channels = info.channels
+
+                # Try to get the channel layout from the source
+                channel_input = 0
+                if hasattr(stream.codec_context.contents, "ch_layout"):
+                    channel_input = \
+                        stream.codec_context.contents.ch_layout
+                elif hasattr(stream.codec_context.contents, "channel_layout"):
+                    channel_input = \
+                        stream.codec_context.contents.channel_layout
+                if not channel_input:
+                    channel_input = self._get_default_channel_layout(
+                        info.channels)
+
+                channels_out = min(2, abs(tgt_channels))
                 channel_output = self._get_default_channel_layout(
                     channels_out)
 
@@ -385,18 +405,18 @@ class FFmpegSource(FFmpegSource):
 
                 if not self.fixed_tgt_format:  # Automatic
                     d = pyglet.media.get_audio_driver()
-                    active_output = type(d).__name__.replace("Driver", "")
+                    audio_system = type(d).__name__.replace("Driver", "")
                     if sample_format in (AV_SAMPLE_FMT_FLT,
                                          AV_SAMPLE_FMT_FLTP):
-                        if AVAILABLE_AUDIO_OUTPUTS[active_output]["float32"]:
+                        if AVAILABLE_AUDIO_SYSTEMS[audio_system]["float32"]:
                             self.tgt_format = AV_SAMPLE_FMT_FLT
                         else:
                             self.tgt_format = AV_SAMPLE_FMT_S16
                     elif sample_format in (AV_SAMPLE_FMT_S32,
                                            AV_SAMPLE_FMT_S32P):
-                        if AVAILABLE_AUDIO_OUTPUTS[active_output]["int32"]:
+                        if AVAILABLE_AUDIO_SYSTEMS[audio_system]["int32"]:
                             self.tgt_format = AV_SAMPLE_FMT_S32
-                        elif AVAILABLE_AUDIO_OUTPUTS[active_output]["float32"]:
+                        elif AVAILABLE_AUDIO_SYSTEMS[audio_system]["float32"]:
                             self.tgt_format = AV_SAMPLE_FMT_FLT
                         else:
                             self.tgt_format = AV_SAMPLE_FMT_S16
@@ -409,10 +429,15 @@ class FFmpegSource(FFmpegSource):
                 else:
                     raise FFmpegException('Audio format not supported.')
 
+                if self.fixed_tgt_sample_rate:
+                    self.tgt_sample_rate = self.fixed_tgt_sample_rate
+                else:
+                    self.tgt_sample_rate = info.sample_rate
+
                 self.audio_format = AudioFormat(
                     channels=channels_out,
                     sample_size=self._AV_BITS[self.tgt_format],
-                    sample_rate=info.sample_rate)
+                    sample_rate=self.tgt_sample_rate)
                 if self.tgt_format == AV_SAMPLE_FMT_FLT:
                     self.audio_format.sample_type = "float"
                 else:
@@ -428,6 +453,106 @@ class FFmpegSource(FFmpegSource):
                                                 0)
                         if res != 0:
                             print("Info: Bit reduction without dithering")
+
+
+                # Set matrix for mixing down to dual-mono
+                if tgt_channels == -2 and info.channels > 1:
+                    if isinstance(channel_input, int):
+                        in_layout = channel_input
+                    else:
+                        in_layout = channel_input.u.mask
+                    speakers = \
+                        [1 << i for i in range(64) if in_layout & (1 << i)]
+                    mono_row = []
+                    for i in range(info.channels):
+                        speaker = speakers[i] if i < len(speakers) else 0
+                        if speaker in (0x1, 0x2):
+                            w = 0.5                   # FL, FR (-6dB)
+                        elif speaker == 0x4:
+                            w = math.sqrt(0.5)        # Center (-3dB)
+                        elif speaker == 0x8:
+                            w = 0.0                   # LFE (Discarded)
+                        else:
+                            w = 0.5 * math.sqrt(0.5)  # Surrounds (-9dB)
+                        mono_row.append(w * 0.99)
+                    final_weights = mono_row + mono_row
+                    self._matrix_storage = \
+                        (c_double * len(final_weights))(*final_weights)
+                    swresample.swr_set_matrix(self.audio_convert_ctx,
+                                              self._matrix_storage,
+                                              info.channels)
+                ## Set matrix for down-mixing to mono, dual-mono or stereo
+                #if info.channels > abs(tgt_channels) or (
+                #    tgt_channels == -2 and info.channels > 1
+                #):
+                #    if info.channels in self.MULTICHANNEL_INPUT_WEIGHTS:
+                #        raw = self.MULTICHANNEL_INPUT_WEIGHTS[info.channels]
+                #    else:  # High channel count fallback
+                #        raw = [0.5] * info.channels
+                #        raw[0] = raw[1] = math.sqrt(0.5)  # Front L/R
+                #        raw[2] = 1.0                      # Center
+                #        raw[3] = 0.0                      # LFE (Mute)
+                #    if tgt_channels == 1:  # 1-channel output
+                #        final_weights = [w * 0.99 for w in raw]
+                #    elif abs(tgt_channels) == 2:  # 2-channel output
+                #        if info.channels == 2:  # stereo input
+                #            multiplier = 0.5
+                #        else:  # multi-channel input
+                #            multiplier = math.sqrt(0.5)
+                #        weights = [(w * multiplier) * 0.99 for in raw]
+                #        if tgt_channels == -2:  # dual-mono output
+                #            final_weights = row + row
+                #        else:  # stereo output
+                #            left_row = [0.0] * info.channels
+                #            right_row = [0.0] * info.channels
+                #            for i, w in enumerate(weights):
+                #                # Standard FFmpeg Indexing: FL(0), FR(1), FC(2), LFE(3), SL/BL(4), SR/BR(5)
+                #                if i == 0 or i == 4 or i == 6:   # Left-side speakers
+                #                    left_row[i] = w
+                #                elif i == 1 or i == 5 or i == 7: # Right-side speakers
+                #                    right_row[i] = w
+                #                elif i == 2:                     # Center: Split to both (Equal Power)
+                #                    # We use math.sqrt(0.5) to ensure the center stays at the correct volume
+                #                    left_row[i] = w * math.sqrt(0.5)
+                #                    right_row[i] = w * math.sqrt(0.5)
+                #                # LFE (3) stays 0.0 per your matrix
+                #        final_weights = left_row + right_row
+
+
+                #    row = [(weight * multiplier) * 0.99 for weight in raw]
+                #    if tgt_channels == -2:
+                #        final_weights = row + row
+                #    elif tgt_channels == 2:
+                #        final_weights = row
+                #    final_weights = mono_weights * 2
+                #    self._matrix_storage = (c_double * len(final_weights))(*final_weights)
+                #    swresample.swr_set_matrix(self.audio_convert_ctx, self._matrix_storage, info.channels)
+
+                if self.hq_resampling:  # Replace with soxr in future?
+                    avutil.av_opt_set_int(self.audio_convert_ctx,
+                                          asbytes("filter_size"),
+                                          128,
+                                          0)
+                    avutil.av_opt_set_int(self.audio_convert_ctx,
+                                          asbytes("phase_shift"),
+                                          14,
+                                          0)
+                    avutil.av_opt_set_int(self.audio_convert_ctx,
+                                          asbytes("kaiser_beta"),
+                                          12,
+                                          0)
+                    avutil.av_opt_set_double(self.audio_convert_ctx,
+                                             asbytes("cutoff"),
+                                             0.98,
+                                             0)
+                    avutil.av_opt_set_int(self.audio_convert_ctx,
+                                          asbytes("exact_rational"),
+                                          1,
+                                          0)
+                    avutil.av_opt_set_int(self.audio_convert_ctx,
+                                          asbytes("linear_interp"),
+                                          0,
+                                          0)
 
                 if (not self.audio_convert_ctx or
                         swresample.swr_init(self.audio_convert_ctx) < 0):
@@ -471,6 +596,29 @@ class FFmpegSource(FFmpegSource):
         if platform.system() == "Windows" and self._tempfile:
             os.remove(self._tempfile.name)
 
+    def get_formatted_swr_context(self, channel_output: AVChannelLayout | int,
+                                  sample_rate: int,
+                                  channel_input: AVChannelLayout | int,
+                                  sample_format: int) -> int | SwrContext:
+        # Newer FFmpeg versions use the AVChannelLayout
+        if swresample_version < 5:
+            return swresample.swr_alloc_set_opts(
+                None,
+                channel_output, self.tgt_format, self.tgt_sample_rate,
+                channel_input, sample_format, sample_rate,
+                0, None)
+        else:
+            swr_ctx = swresample.swr_alloc()
+            if not swr_ctx:
+                raise RuntimeError("Could not allocate SwrContext")
+
+            if swresample.swr_alloc_set_opts2(
+                byref(swr_ctx),
+                channel_output, self.tgt_format, self.tgt_sample_rate,
+                channel_input, sample_format, sample_rate,
+                0, None) < 0:
+                raise Exception("Could not set sample rate context values.")
+            return swr_ctx
 
 class FFmpegDecoder(FFmpegDecoder):
     """Modified FFmpegDecoder to load modified FFmpegSource."""
@@ -486,43 +634,70 @@ class AudioPlayer:
 
     """
 
-    available_audio_outputs = AVAILABLE_AUDIO_OUTPUTS
-    available_output_formats = {}
-    for output in AVAILABLE_AUDIO_OUTPUTS:
-        d = {"Automatic": 0, "16-bit": AV_SAMPLE_FMT_S16}
-        if AVAILABLE_AUDIO_OUTPUTS[output]["float32"]:
-            d["32-bit float"] = AV_SAMPLE_FMT_FLT
-        available_output_formats[output] = d
+    available_audio_systems = AVAILABLE_AUDIO_SYSTEMS
+    available_sample_formats = {}
+    for system in AVAILABLE_AUDIO_SYSTEMS:
+        d = {"Automatic": 0, "16 bit": AV_SAMPLE_FMT_S16}
+        if AVAILABLE_AUDIO_SYSTEMS[system]["float32"]:
+            d["32 bit float"] = AV_SAMPLE_FMT_FLT
+        available_sample_formats[system] = d
 
-    def __init__(self, audio_output, output_format):
+    def __init__(self, audio_system, sample_format, sample_rate, channel_mode,
+                 hq_resampling):
         """Create an AudioPlayer object.
 
         Parameters
         ----------
-        audio_output : str
+        audio_system : str
             the pyglet audio driver to use ('XAudio2', 'DirectSound', 'OpenAL',
             'PulseAudio')
-        audio_format : str
-            the FFmpeg output format to use ("Automatic", "16-bit",
-            "32-bit float")
+        sample_format : str
+            the FFmpeg output format to use ("Automatic", "16 bit",
+            "32 bit float")
+        sample_rate : str
+            the FFmpeg sample rate to use ("Automatic", "44100 Hz", "48000 Hz",
+            "88200 Hz", "96000 Hz")
+        channel_mode : str
+            the FFmpeg output channel mode to use ("Automatic", "Mono",
+            "Dual-Mono", Stereo")
+        hq_resampling : bool
+            whether to use hiqh-quality resampling
 
         """
 
-        audio_driver = self.available_audio_outputs[audio_output]["driver"]
+        audio_driver = self.available_audio_systems[audio_system]["driver"]
         module = __import__(f"pyglet.media.drivers.{audio_driver}",
                             fromlist=['create_audio_driver'])
         pyglet.media.drivers._audio_driver = module.create_audio_driver()
 
         FFmpegSource.fixed_tgt_format = \
-            self.available_output_formats[audio_output][output_format]
+            self.available_sample_formats[audio_system][sample_format]
+        FFmpegSource.fixed_tgt_sample_rate = 0
+        if sample_rate != "Automatic":
+            FFmpegSource.fixed_tgt_sample_rate = int(sample_rate.split(" ")[0])
+        channel_mapping = {"Mono" : 1, "Dual-Mono": -2, "Stereo": 2}
+        FFmpegSource.fixed_tgt_channels = 0
+        if channel_mode != "Automatic":
+            FFmpegSource.fixed_tgt_channels = channel_mapping[channel_mode]
 
-        self._audio_output = audio_output
-        self._output_format = output_format
+        self._audio_system = audio_system
+        self._sample_format = sample_format
+        self._sample_rate = sample_rate
+        self._channel_mode = channel_mode
+        self._hq_resampling = hq_resampling
         self._player = pyglet.media.Player()
         self._on_eos = None
         self._clear_on_queue = True
         self.offset = 0
-        print(f"Audio Output: {self.audio_output} ({self.output_format})")
+
+        audio_settings = []
+        if sample_format != "Automatic":
+            audio_settings.append(sample_format)
+        if sample_rate != "Automatic":
+            audio_settings.append(sample_rate)
+        if channel_mode != "Automatic":
+            audio_settings.append(channel_mode)
+        print(f"Audio System: {audio_system} {' '.join(audio_settings)}")
 
     def __del__(self):
         """Delete an AudioPlayer object."""
@@ -530,12 +705,24 @@ class AudioPlayer:
         self._player.delete()
 
     @property
-    def audio_output(self):
-        return self._audio_output
+    def audio_system(self):
+        return self._audio_system
 
     @property
-    def output_format(self):
-        return self._output_format
+    def sample_format(self):
+        return self._sample_format
+
+    @property
+    def sample_rate(self):
+        return self._sample_rate
+
+    @property
+    def channel_mode(self):
+        return self._channel_mode
+
+    @property
+    def hq_resampling(self):
+        return self._hq_resampling
 
     @property
     def is_playing(self):
@@ -681,21 +868,31 @@ class GaplessAudioPlayer(AudioPlayer):
 
     """
 
-    def __init__(self, audio_output, output_format):
+    def __init__(self, audio_system, sample_format, sample_rate, channel_mode,
+                 hq_resampling):
         """Create an AudioPlayer object.
 
         Parameters
         ----------
-        audio_output : str
+        audio_system : str
             the pyglet audio driver to use ('XAudio2', 'DirectSound', 'OpenAL',
             'PulseAudio')
-        audio_format : str
-            the FFmpeg output format to use ("Automatic", "16-bit",
-            "32-bit float")
+        sample_format : str
+            the FFmpeg output format to use ("Automatic", "16 bit",
+            "32 bit float")
+        sample_rate : str
+            the FFmpeg sample rate to use ("Automatic", "44100 Hz", "48000 Hz",
+            "88200 Hz", "96000 Hz")
+        channel_mode : str
+            the FFmpeg channel mode to ise ("Automatic", "Mono", "Dual-Mone",
+            "Stereo")
+        hq_resampling : bool
+            whether to use high-quality resampling
 
         """
 
-        super().__init__(audio_output, output_format)
+        super().__init__(audio_system, sample_format, sample_rate,
+                         channel_mode, hq_resampling)
         self._on_gapless_eos = None
         self.clear()
 

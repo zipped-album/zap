@@ -26,6 +26,8 @@ except ImportError:
             audio_metadata = None
 
 import fitz
+from PIL import Image
+from PIL import __version__ as pil_version
 
 from .__init__ import __author__, __version__
 
@@ -303,7 +305,7 @@ def _create_booklet_page(args):
     pdf.close()
 
 
-def create_zipped_album(directory, filename=None):
+def create_zipped_album(directory, filename=None, as_png=True):
     """Create a Zipped Album from a directory.
 
     Parameters
@@ -313,6 +315,8 @@ def create_zipped_album(directory, filename=None):
     filename : str, optional
         the path to the file to save the Zipped Album to
         (if none is given, save as "<directory>.zlbm")
+    as_png : bool, optional
+        whether to save the album as .zlbm.png
 
     Returns
     -------
@@ -323,6 +327,10 @@ def create_zipped_album(directory, filename=None):
 
     if filename is None:
         filename = directory + ".zlbm"
+        if as_png:
+            filename = filename + ".png"
+    elif not os.path.isabs(filename):
+        filename = os.path.join(os.path.split(directory)[0], filename)
 
     idx = 1
     orig_filename = filename
@@ -337,6 +345,42 @@ def create_zipped_album(directory, filename=None):
     with zipfile.ZipFile(filename, 'w') as archive:
         for file in (x for l in content.values() for x in l):
             archive.write(os.path.join(directory, file), arcname=file)
+
+    if as_png:
+        album = ZippedAlbum(filename)
+        album.prepare_booklet_pages()
+        curdir = os.path.dirname(os.path.abspath(__file__))
+        transparent_icon = Image.open(
+            os.path.join(curdir, "transparent_icon.png")).convert("RGBA")
+        bg = Image.new("RGBA", (transparent_icon.size[0],
+                                transparent_icon.size[1]), (0, 0, 0, 0))
+        cover_mask = Image.open(
+            os.path.join(curdir, "cover_mask.png")).convert("RGBA")
+        while True:
+            first_slide = album.get_slide(0)
+            if first_slide is not None:
+                try:
+                    cover = Image.open(first_slide)
+                    break
+                except:
+                    pass
+        if int(pil_version.split(".")[0]) < 10:
+            cover = cover.resize((1000, 1000), Image.ANTIALIAS)
+        else:
+            cover = cover.resize((1000, 1000), Image.LANCZOS)
+        cover_layer = Image.new("RGBA", bg.size, (0, 0, 0, 0))
+        cover_layer.paste(cover, (1, 180), cover_mask)
+        bg = Image.alpha_composite(bg, cover_layer)
+        bg = Image.alpha_composite(bg, transparent_icon)
+
+        image_bytes = io.BytesIO()
+        bg.save(image_bytes, format='PNG')
+        image_bytes.seek(0)
+        image_data = image_bytes.read()
+        with open(filename, "rb+") as f:
+            zip_data = f.read()
+            f.seek(0)
+            f.write(image_data + zip_data)
 
     return filename
 

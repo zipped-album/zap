@@ -14,9 +14,11 @@ import re
 import sys
 import copy
 import time
+import queue
 import random
 import colorsys
 import platform
+import threading
 import configparser
 import dateutil.parser
 
@@ -477,126 +479,388 @@ class TrackTooltip:
         self.last_idd = None
 
 
-class HelpDialogue:
-    def __init__(self, master):
-        self.master = master
-        top = self.top = tk.Toplevel(master)
-        top.title("About")
-        top.resizable(False, False)
+class DialogueWindow(tk.Toplevel):
+    TITLE = ""
+    TRANSIENT = platform.system() != "Darwin"
+    UNMANAGED = False
+    MODAL = False
 
-        self.text = tk.Text(top, width=79, height=len(ABOUT_TEXT.split("\n")))
+    _instances = {}
+
+    def __init__(self, parent):
+        if self.TRANSIENT:
+            tk.Toplevel.__init__(self, parent)
+            self.transient(parent)
+        else:
+            root = parent.nametowidget(".")
+            tk.Toplevel.__init__(self, root)
+            self.transient(root)
+
+        # Allow only one instance
+        cls = self.__class__
+        if cls in DialogueWindow._instances and \
+                DialogueWindow._instances[cls].winfo_exists():
+            DialogueWindow._instances[cls].lift()
+            DialogueWindow._instances[cls].focus_force()
+            self.destroy()
+            return
+        DialogueWindow._instances[cls] = self
+
+        self.parent = parent
+        self.withdraw()
+
+        self.title(self.TITLE)
+        self.resizable(False, False)
+
+        if self.UNMANAGED:
+            self.overrideredirect(True)
+        else:
+            self.protocol("WM_DELETE_WINDOW", self.close)
+        self.bind("<Escape>", self.close)
+
+        self.create_widgets()
+        self.update_idletasks()
+        self.set_geometry()
+
+        self.deiconify()
+        self.lift()
+        self.focus_set()
+
+        if self.MODAL:
+            self.grab_set()
+            if platform.system() == "Windows":
+                parent.wm_attributes("-disabled", True)
+
+        self.on_show()
+
+    def create_widgets(self):
+        pass
+
+    def set_geometry(self):
+        # Center window by default
+        px, py = self.parent.winfo_rootx(), self.parent.winfo_rooty()
+        pw, ph = self.parent.winfo_width(), self.parent.winfo_height()
+        w, h = self.winfo_reqwidth(), self.winfo_reqheight()
+        x = px + (pw // 2) - (w // 2)
+        y = py + (ph // 2) - (h // 2)
+        self.geometry(f"{w}x{h}+{max(0, x)}+{max(0, y)}")
+
+    def on_show(self):
+        pass
+
+    def wait(self):
+        if not self.winfo_exists():
+            return
+        self.wait_window()
+
+    def close(self, event=None):
+        cls = self.__class__
+        if DialogueWindow._instances.get(cls) == self:
+            del DialogueWindow._instances[cls]
+
+        if self.MODAL:
+            if platform.system() == "Windows":
+                self.parent.wm_attributes("-disabled", False)
+            self.grab_release()
+
+        self.destroy()
+
+
+class AboutDialogue(DialogueWindow):
+    TITLE = "About ZAP"
+
+    def create_widgets(self):
+        self.text = tk.Text(self, width=79, height=len(ABOUT_TEXT.split("\n")))
         self.text.pack(expand=True, fill="both")
         self.text.insert(tk.END, ABOUT_TEXT)
         self.text["state"] = "disabled"
 
-        top.protocol("WM_DELETE_WINDOW", self.ok)
-        top.bind("<Escape>", self.ok)
 
-        top.geometry("+%d+%d" % (master.winfo_rootx(), master.winfo_rooty()))
+class SettingsWindow(DialogueWindow):
+    TITLE = "ZAP Settings"
 
-        top.transient(self.master)
-        top.focus_force()
-        top.wait_visibility()
-        top.grab_set()
-        if platform.system() == "Windows":
-            master.wm_attributes("-disabled", True)
-        master.wait_window(top)
+    def create_widgets(self):
+        self.frame = ttk.Frame(self)
+        self.frame.pack()
 
-    def ok(self, *args):
-        if platform.system() == "Windows":
-            self.master.wm_attributes("-disabled", False)
-        self.top.grab_release()
-        self.top.destroy()
+        # Audio
+        style = ttk.Style()
+        style.configure("TLabelframe.Label", font=font(FONTSIZE,
+                                                       weight="bold"))
+        audio_frame = ttk.LabelFrame(self.frame,
+                                     text="Audio",
+                                     padding=(PADDING/2, PADDING/4*3))
+        audio_frame.pack(fill="x", padx=PADDING, pady=PADDING)
+
+        ttk.Label(audio_frame, text="Audio System:").grid(
+            row=0, column=0, sticky="w",)
+        self.audio_system = ttk.Combobox(
+            audio_frame,
+            values=list(AudioPlayer.available_audio_systems.keys()),
+            state="readonly")
+        self.audio_system.set(self.parent.audio_system)
+        self.audio_system.bind("<<ComboboxSelected>>",
+                               self.update_audio_values)
+        self.audio_system.grid(row=0, column=1, sticky="ew")
+        ttk.Label(audio_frame, text="Channel Mode:").grid(
+            row=1, column=0, sticky="w",)
+        self.channel_mode = ttk.Combobox(
+            audio_frame,
+            values=("Automatic", "Mono", "Dual-Mono", "Stereo"),
+            state="readonly")
+        self.channel_mode.set(self.parent.channel_mode)
+        self.channel_mode.bind("<<ComboboxSelected>>",
+                               self.update_audio_values)
+        self.channel_mode.grid(row=1, column=1, sticky="ew")
+        ttk.Label(audio_frame, text="Sample Format:").grid(
+            row=2, column=0, sticky="w")
+        self.sample_format = ttk.Combobox(
+            audio_frame,
+            values=list(AudioPlayer.available_sample_formats[
+                self.parent.audio_system].keys()),
+            state="readonly")
+        self.sample_format.set(self.parent.sample_format)
+        if self.sample_format.get() not in self.sample_format["values"]:
+            self.sample_format.set("Automatic")
+        self.sample_format.bind("<<ComboboxSelected>>",
+                                self.update_audio_values)
+        self.sample_format.grid(row=2, column=1,sticky="ew")
+
+        ttk.Label(audio_frame, text="Sample Rate:").grid(
+            row=3, column=0, sticky="w")
+        self.sample_rate = ttk.Combobox(
+            audio_frame,
+            values=("Automatic", "8000 Hz", "44100 Hz", "48000 Hz", "88200 Hz",
+                    "96000 Hz"),
+            state="readonly",
+        )
+        self.sample_rate.set(self.parent.sample_rate)
+        self.sample_rate.bind("<<ComboboxSelected>>",
+                              self.update_audio_values)
+        self.sample_rate.grid(row=3, column=1, sticky="ew")
+
+        self.hq_resampling_var = tk.BooleanVar()
+        self.hq_resampling_var.set(self.parent.hq_resampling)
+        self.hq_resampling = ttk.Checkbutton(
+            audio_frame,
+            text="High-Quality Resampling",
+            variable=self.hq_resampling_var,
+            command=self.update_audio_values,
+            onvalue=True,
+            offvalue=False
+        )
+        self.hq_resampling.grid(row=4, column=1, sticky="ew")
+
+        audio_frame.columnconfigure(1, weight=1)
+        for child in audio_frame.winfo_children():
+            child.grid_configure(padx=PADDING/2, pady=PADDING/4)
+
+    def on_show(self):
+        self.update_audio_values()
+
+    def update_audio_values(self, event=None):
+        restart_player = False
+
+        audio_system = self.audio_system.get()
+        sample_format = self.sample_format.get()
+        sample_rate = self.sample_rate.get()
+        channel_mode = self.channel_mode.get()
+        hq_resampling = self.hq_resampling_var.get()
+
+        if audio_system != self.parent.audio_system:
+            sample_formats = \
+                list(AudioPlayer.available_sample_formats[audio_system].keys())
+            self.sample_format["values"] = sample_formats
+            self.parent.apply_setting("AUDIO", "audio_system", audio_system)
+            if sample_format not in sample_formats:
+                sample_format = "Automatic"
+                self.sample_format.set(sample_format)
+                self.parent.apply_setting("AUDIO", "sample_format",
+                                          sample_format)
+            restart_player = True
+
+        if sample_format != self.parent.sample_format:
+            self.parent.apply_setting("AUDIO", "sample_format", sample_format)
+            restart_player = True
+
+        if sample_rate != self.parent.sample_rate:
+            self.parent.apply_setting("AUDIO", "sample_rate", sample_rate)
+            restart_player = True
+
+        if channel_mode != self.parent.channel_mode:
+            self.parent.apply_setting("AUDIO", "channel_mode", channel_mode)
+            restart_player = True
+
+        if hq_resampling != self.parent.hq_resampling:
+            self.parent.apply_setting("AUDIO", "hq_resampling", hq_resampling)
+            restart_player = True
+
+        if restart_player:
+            self.parent.restart_player()
+
+        if sample_rate == "Automatic":
+            self.hq_resampling.state(["disabled"])
+        else:
+            self.hq_resampling.state(["!disabled"])
 
 
-class DownloadFFmpegDialogue:
-    def __init__(self, master):
-        self.master = master
-        top = self.top = tk.Toplevel(master)
-        top.title("Downloading...")
-        top.resizable(False, False)
+class CreateAlbumDialogue(DialogueWindow):
+    TITLE = "Create Zipped Album"
 
-        self.text1 = ttk.Label(top, text="", anchor=tk.CENTER)
-        self.text1.grid(row=0, column=0, sticky="nesw")
-        self.progressbar = ttk.Progressbar(top, length=WIDTH, maximum=100)
-        self.progressbar.grid(row=1, column=0, sticky="nesw")
-        self.text2 = ttk.Label(top, text="", anchor=tk.CENTER)
-        self.text2.grid(row=2, column=0, sticky="nesw")
+    def create_widgets(self):
+        self.directory = tk.StringVar()
+        self.directory.trace_add("write", self.change_create_state)
+        self.filename = tk.StringVar()
+        self.filename.trace_add("write", self.change_create_state)
+        self.png = tk.BooleanVar(value=False)
+        self.png.trace_add("write", self.change_png)
+        self.open_album = tk.BooleanVar(value=True)
 
-        top.protocol("WM_DELETE_WINDOW", lambda: None)
+        frame = ttk.Frame(self)
+        frame.pack()
 
-        size, pos_x, pos_y = master.parent.geometry().split("+")
+        style = ttk.Style()
+        style.configure("TLabelframe.Label", font=font(FONTSIZE,
+                                                       weight="bold"))
 
-        root_x = int(pos_x)
-        top.geometry(f"+%d+%d" % (root_x, master.winfo_rooty()))
+        input_frame = ttk.LabelFrame(frame, text="Input",
+                                     padding=(PADDING/2, PADDING/4*3))
+        input_frame.pack(fill="x", padx=PADDING, pady=(PADDING, 0))
+        dir_label = ttk.Label(input_frame, text="Directory:").grid(
+            row=0, column=0, sticky="w")
+        self.dir_entry = ttk.Entry(input_frame, textvariable=self.directory,
+                                   width=50)
+        self.dir_entry.grid(row=1, column=0, sticky="ew")
+        self.dir_button = ttk.Button(input_frame, text="Browse...",
+                                     command=self.browse_in)
+        self.dir_button.grid(row=1, column=1, sticky="e")
+        input_frame.columnconfigure(1, weight=1)
+        for child in input_frame.winfo_children():
+            child.grid_configure(padx=PADDING/2, pady=PADDING/4)
 
-        top.transient(self.master)
-        top.focus_force()
-        top.wait_visibility()
-        top.grab_set()
-        if platform.system() == "Windows":
-            master.parent.wm_attributes("-disabled", True)
+        output_frame = ttk.LabelFrame(frame, text="Output",
+                                     padding=(PADDING/2, PADDING/4*3))
+        output_frame.pack(fill="x", padx=PADDING, pady=(PADDING, 0))
+        filename_label = ttk.Label(output_frame, text="Filename:").grid(
+            row=0, column=0, sticky="w")
+        filename_entry = ttk.Entry(output_frame, textvariable=self.filename,
+                                   width=50)
+        filename_entry.grid(row=1, column=0, sticky="ew")
+        ttk.Button(output_frame, text="Browse...",
+                   command=self.browse_out).grid(row=1, column=1, sticky="e")
+        ttk.Checkbutton(output_frame,
+                        text='Wrap in album sleeve (.zlbm.png)',
+                        variable=self.png).grid(row=2, column=0, sticky="w",
+                                                columnspan=3)
+        output_frame.columnconfigure(1, weight=1)
+        for child in output_frame.winfo_children():
+            child.grid_configure(padx=PADDING/2, pady=PADDING/4)
 
-    def start(self, *args):
-        def _progress(count, total, message=''):
-            """Progress callback function"""
+        button_frame = ttk.Frame(frame, padding=(PADDING/2, PADDING/4*3))
+        button_frame.pack(fill="x")
+        ttk.Checkbutton(button_frame,
+                        text="Open album after creation",
+                        variable=self.open_album).grid(
+                            row=0, column=0, sticky="w")
+        self.create_button = ttk.Button(button_frame, text="Create",
+                                        command=self.create,
+                                        default="active",
+                                        state="disabled")
+        cancel_button = ttk.Button(button_frame, text="Cancel",
+                                   command=self.close)
+        # Cross-platform button ordering
+        if platform.system() in ("Darwin", "Linux"): # Cancel | Create
+            cancel_button.grid(row=0, column=1, sticky="e")
+            self.create_button.grid(row=0, column=2, sticky="e")
+        else: # Create | Cancel
+            self.create_button.grid(row=0, column=1, sticky="e")
+            cancel_button.grid(row=0, column=2, sticky="e")
+        button_frame.columnconfigure(0, weight=1)
+        for child in button_frame.winfo_children():
+            child.grid_configure(padx=PADDING/2, pady=PADDING/4)
 
-            percents = int(100.0 * count / float(total))
-            self.progressbar["value"] = percents
-            self.text1["text"] = message
-            self.text2["text"] = f"{percents} %"
-            self.top.update()
+    def on_show(self):
+        self.dir_entry.focus_set()
+        self.bind('<Return>', (lambda e, b=self.dir_button: b.invoke()))
 
+    def browse_in(self):
         try:
-            download_ffmpeg(_progress)
-            self.destroy()
-            messagebox.showinfo(title="Done",
-                                message="FFmpeg libraries have been "
-                                "downloaded successfully!")
-        except Exception as e:
-            try:
-                if not hasattr(e, "status"):
-                    messagebox.showerror(
-                        title="Connection error",
-                        message="The connection to the download location has "
-                        "failed with error:\n\n"
-                        f"{e.reason}")
+            initialdir = os.path.split(self.directory.get())[0]
+            assert os.path.isdir(initialdir)
+        except AssertionError:
+            if self.parent.loaded_album is not None:
+                initialdir = os.path.split(self.praent.loaded_album.filename)[0]
+            else:
+                initialdir = self.parent.config.get("GENERAL", "directory",
+                                                    fallback=os.getcwd())
+        self.update_idletasks()
+        self.update()
+        self.lift()
+        self.focus_force()
+        directory = filedialog.askdirectory(initialdir=initialdir,
+                                            mustexist=True,
+                                            parent=self)
+        if directory:
+            self.directory.set(directory)
+            if not self.filename.get():
+                ext = ".zlbm"
+                if self.png.get():
+                    ext += ".png"
+                self.filename.set(directory + ext)
 
-                elif e.status == 404:
-                    self.destroy()
-                    platform = get_platform()
-                    messagebox.showerror(title="No download available",
-                                         message="There is no download "
-                                         "available for this platform "
-                                         f"({platform})!\n\n"
-                                         "Please manually install FFmpeg "
-                                         "libraries (version 4) on your "
-                                         "system.")
+    def browse_out(self):
+        try:
+            initialdir = os.path.split(self.filename.get())[0]
+            assert os.path.isdir(initialdir)
+        except AssertionError:
+            if self.parent.loaded_album is not None:
+                initialdir = os.path.split(self.parent.loaded_album.filename)[0]
+            else:
+                initialdir = self.parent.config.get("GENERAL", "directory",
+                                                    fallback=os.getcwd())
+        filename = filedialog.asksaveasfilename(initialdir=initialdir,
+                                                defaultextension=".zlbm",
+                                                parent=self)
+        if filename:
+            if self.png.get():
+                filename += ".png"
+            self.filename.set(filename)
 
+    def change_png(self, *args):
+        filename = self.filename.get()
+        if self.png.get():
+            if filename:
+                    self.filename.set(
+                        os.path.splitext(filename)[0] + ".zlbm.png")
+        else:
+            if filename:
+                if filename.endswith(".zlbm.png"):
+                    self.filename.set(filename[:-4])
                 else:
-                    raise Exception
-            except Exception:
-                if messagebox.askretrycancel(title="Download failed",
-                                             message="The download has failed "
-                                             "for an unknown reason!",
-                                             icon="error"):
-                    self.start()
-                else:
-                    self.destroy()
+                    self.filename.set(os.path.splitext(filename)[0] + ".zlbm")
 
-    def destroy(self, *args):
-        if platform.system() == "Windows":
-            self.master.parent.wm_attributes("-disabled", False)
-        self.top.grab_release()
-        self.top.destroy()
+    def create(self):
+        self.close()
+        self.parent.make_album(self.directory.get(),
+                               self.filename.get(),
+                               self.png.get(),
+                               self.open_album.get())
+
+    def change_create_state(self, *args):
+        if self.directory.get() and self.filename.get():
+            self.create_button["state"] = "normal"
+            self.bind('<Return>', (lambda e, b=self.create_button: b.invoke()))
+        else:
+            self.create_button["state"] = "disabled"
 
 
-class MainApplication(ttk.Frame):
+class MainApplication(tk.Toplevel):
     def __init__(self, parent, *args, **kwargs):
-        ttk.Frame.__init__(self, parent, *args, **kwargs)
+        tk.Toplevel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
+        self.withdraw()
         self.style = ttk.Style()
-        #self.style.theme_use("clam")
+        #self.style.theme_use("default")
         self.config = configparser.ConfigParser()
         self.load_config()
         #geometry = self.config.get("GENERAL", "window_geometry",
@@ -607,17 +871,10 @@ class MainApplication(ttk.Frame):
         #self._last_geometry = geometry
         self.size = [WIDTH, HEIGHT]
         self._last_geometry = "{WIDTH}x{HEIGHT}+0+0"
+
         self.repeat_album = tk.BooleanVar()
         self.repeat_album.set(self.config.getboolean("PLAYBACK", "repeat",
                                                     fallback=False))
-
-        self.audio_output = tk.StringVar()
-        self.audio_output.set(self.config.get("PLAYBACK", "audio_output",
-                                              fallback="Silent"))
-
-        self.output_format = tk.StringVar()
-        self.output_format.set(self.config.get("PLAYBACK", "output_format",
-                                              fallback="Automatic"))
         self.show_menubar = tk.BooleanVar()
         self.show_menubar.set(self.config.getboolean("VIEW", "show_menubar",
                                                      fallback=True))
@@ -627,6 +884,23 @@ class MainApplication(ttk.Frame):
         self.fullscreen = tk.BooleanVar()
         self.fullscreen.set(self.config.getboolean("VIEW", "fullscreen",
                                                    fallback=False))
+
+        self.audio_system = self.config.get("SETTINGS.AUDIO",
+                                            "audio_system",
+                                            fallback="")
+        self.channel_mode = self.config.get("SETTINGS.AUDIO",
+                                            "channel_mode",
+                                            fallback="Automatic")
+        self.sample_format = self.config.get("SETTINGS.AUDIO",
+                                             "sample_format",
+                                             fallback="Automatic")
+        self.sample_rate = self.config.get("SETTINGS.AUDIO",
+                                           "sample_rate",
+                                           fallback="Automatic")
+        self.hq_resampling = bool(self.config.getboolean("SETTINGS.AUDIO",
+                                                         "hq_resampling",
+                                                         fallback=False))
+
         self.loaded_album = None
         self.create_menu()
         self.create_widgets()
@@ -643,6 +917,7 @@ class MainApplication(ttk.Frame):
         self.now = time.monotonic
 
         self._last_increment_track = self.now()
+        self._ffmpeg_is_downloading = False
 
         self.toggle_show_menubar()
         self.toggle_always_on_top()
@@ -714,14 +989,15 @@ class MainApplication(ttk.Frame):
             initialdir = self.config.get("GENERAL", "directory",
                                          fallback=os.getcwd())
 
-        allowed_extensions = ".zip .zlbm"
+        allowed_extensions = ".zip .zlbm .png"
         filetypes = [("Zipped Album files", allowed_extensions),
                      ("All files", "*.*")]
         was_always_on_top = self.always_on_top.get()
         if was_always_on_top:
             self.toggle_always_on_top()
         filename = filedialog.askopenfilename(initialdir=initialdir,
-                                              filetypes=filetypes)
+                                              filetypes=filetypes,
+                                              parent=self)
         if was_always_on_top:
             self.toggle_always_on_top()
 
@@ -731,16 +1007,7 @@ class MainApplication(ttk.Frame):
             self.config.set("GENERAL", "directory", os.path.split(filename)[0])
             self.clear()
             self.load_album(filename, exact=exact)
-            self.parent.focus_force()
-
-    def _create_album(self, *args, **kwargs):
-        if self.loaded_album is not None:
-            initialdir = os.path.split(self.loaded_album.filename)[0]
-        else:
-            initialdir = os.getcwd()
-        directory = filedialog.askdirectory(initialdir=initialdir)
-        if directory:
-            self.make_album(directory)
+            self.focus_force()
 
     def load_config(self):
         config_file = os.path.join(get_settings_folder(), "config")
@@ -766,14 +1033,23 @@ class MainApplication(ttk.Frame):
         self.menubar = tk.Menu(self.parent, tearoff=False)  # menubar
 
         if platform.system() == "Darwin":
+            self.master.createcommand('tkAboutDialog',
+                                      lambda: AboutDialogue(self))
+            self.master.createcommand('tk::mac::ShowPreferences',
+                                      lambda: SettingsWindow(self))
+            self.master.createcommand('tk::mac::Quit', self.quit)
             modifier = "Command"
             f_accelerator_prefix = "Command-"
-            self.apple_menu = tk.Menu(self.menubar, name="apple")
-            self.menubar.add_cascade(menu=self.apple_menu, label="ZAP")
-            self.apple_menu.add_command(
-                label="About ZAP",
-                command=lambda: HelpDialogue(self.master),
-                accelerator=f"{f_accelerator_prefix}F1")
+            #self.apple_menu = tk.Menu(self.menubar, name="apple")
+            #self.menubar.add_cascade(menu=self.apple_menu, label="ZAP")
+            #self.apple_menu.add_command(
+            #    label="About ZAP",
+            #    command=lambda: HelpDialogue(self.master),
+            #    accelerator=f"{f_accelerator_prefix}F1")
+            #self.apple_menu.add_command(
+            #    label="Settings...",
+            #    command=lambda: SettingsWindow(self.master),
+            #    accelerator=f"{f_accelerator_prefix}-,")
             view_menu_label = "View "  # hack to fix automatic MacOS View menu
         else:
             modifier = "Control"
@@ -782,7 +1058,7 @@ class MainApplication(ttk.Frame):
 
         self.menu.add_command(
                 label="About ZAP",
-                command=lambda: HelpDialogue(self.master),
+                command=lambda: AboutDialogue(self),
                 accelerator=f"{f_accelerator_prefix}F1")
 
         self.menu.add_separator()
@@ -816,7 +1092,7 @@ class MainApplication(ttk.Frame):
         self.file_menu_bar.add_separator()
 
         file_create = {"label": "Create...",
-                       "command": self._create_album}
+                       "command": lambda: CreateAlbumDialogue(self)}
         self.file_menu.add_command(**file_create)
         self.file_menu_bar.add_command(**file_create)
 
@@ -1004,39 +1280,39 @@ class MainApplication(ttk.Frame):
         self.playback_menu.add_checkbutton(label="Repeat",
                                            variable=self.repeat_album,
                                            command=self.toggle_repeat_album)
-        self.playback_menu.add_separator()
-        self.playback_audio_output_menu = tk.Menu(self.playback_menu,
-                                                     tearoff=False)
-        self.playback_menu.add_cascade(
-            menu=self.playback_audio_output_menu, label="Audio Output")
-        try:
-            for option in AudioPlayer.available_audio_outputs:
-                self.playback_audio_output_menu.add_radiobutton(
-                    label=option,
-                    variable=self.audio_output,
-                    value=option,
-                    command=self.set_audio_output)
-        except:
-            pass
-        self.playback_output_format_menu = tk.Menu(self.playback_menu,
-                                                     tearoff=False)
-        self.playback_menu.add_cascade(
-            menu=self.playback_output_format_menu, label="Output Format")
-        try:
-            for option in AudioPlayer.available_output_formats["Silent"]:
-                self.playback_output_format_menu.add_radiobutton(
-                    label=option,
-                    variable=self.output_format,
-                    value=option,
-                    command=self.set_output_format)
-                if option not in AudioPlayer.available_output_formats[
-                    self.audio_output.get()]:
-                    self.playback_output_format_menu.entryconfig(
-                        option, state="disabled")
-                    if self.output_format.get() == option:
-                        self.output_format.set("Automatic")
-        except:
-            pass
+        #self.playback_menu.add_separator()
+        #self.playback_audio_output_menu = tk.Menu(self.playback_menu,
+        #                                             tearoff=False)
+        #self.playback_menu.add_cascade(
+        #    menu=self.playback_audio_output_menu, label="Audio Output")
+        #try:
+        #    for option in AudioPlayer.available_audio_outputs:
+        #        self.playback_audio_output_menu.add_radiobutton(
+        #            label=option,
+        #            variable=self.audio_output,
+        #            value=option,
+        #            command=self.set_audio_output)
+        #except:
+        #    pass
+        #self.playback_output_format_menu = tk.Menu(self.playback_menu,
+        #                                             tearoff=False)
+        #self.playback_menu.add_cascade(
+        #    menu=self.playback_output_format_menu, label="Output Format")
+        #try:
+        #    for option in AudioPlayer.available_output_formats["Silent"]:
+        #        self.playback_output_format_menu.add_radiobutton(
+        #            label=option,
+        #            variable=self.output_format,
+        #            value=option,
+        #            command=self.set_output_format)
+        #        if option not in AudioPlayer.available_output_formats[
+        #            self.audio_output.get()]:
+        #            self.playback_output_format_menu.entryconfig(
+        #                option, state="disabled")
+        #            if self.output_format.get() == option:
+        #                self.output_format.set("Automatic")
+        #except:
+        #    pass
 
         #if self.loaded_album is None:
         #    self.playback_menu.entryconfig("Audio Output", state="disabled")
@@ -1054,12 +1330,17 @@ class MainApplication(ttk.Frame):
         if platform.system() != "Darwin":
             self.help_menu.add_command(
                 label="About",
-                command=lambda: HelpDialogue(self.master),
+                command=lambda: AboutDialogue(self),
                 accelerator="F1")
 
         if self.show_menubar.get():
             self.parent["menu"] = self.menubar
 
+        self.menu.add_separator()
+        self.menu.add_command(
+                label="Settings...",
+                command=lambda: AboutDialogue(self),
+                accelerator=f"{f_accelerator_prefix},")
         self.menu.add_separator()
         self.menu.add_command(label="Quit",
                               command=self.quit,
@@ -1086,15 +1367,34 @@ class MainApplication(ttk.Frame):
             pass
 
     def change_menu_state(self, state):
-        self.menubar.entryconfig("File", state=state)
-        self.menubar.entryconfig("Playback", state=state)
-        self.menubar.entryconfig("View ", state=state)
-        self.menubar.entryconfig("Help", state=state)
         if platform.system() == "Darwin":
+            self.menubar.entryconfig("File", state=state)
+            self.menubar.entryconfig("View ", state=state)
+            if state == "disabled":
+                try:
+                    self.parent.deletecommand('tk::mac::ShowPreferences')
+                except:
+                    pass
+            else:
+                self.parent.createcommand('tk::mac::ShowPreferences',
+                                          SettingsWindow)
+        else:
             try:
-                self.menubar.entryconfig("Python", state=state)
-            except:
+                self.menubar.entryconfig("File", state="normal")
+                file_menu_path = self.menubar.entrycget("File", "menu")
+                file_menu = self.nametowidget(file_menu_path)
+                last_index = file_menu.index("end")
+                for i in range(last_index + 1):
+                    if i != last_index:  # Everything except "Quit"
+                        try:
+                            file_menu.entryconfig(i, state=state)
+                        except:
+                            pass # Skip separators
+            except Exception:
                 pass
+            self.menubar.entryconfig("View", state=state)
+        self.menubar.entryconfig("Playback", state=state)
+        self.menubar.entryconfig("Help", state=state)
 
     def create_widgets(self):
         """Contains all widgets in main application."""
@@ -1168,15 +1468,15 @@ class MainApplication(ttk.Frame):
         frame_right.grid(column=1, row=0, sticky="nesw")
         frame_right.columnconfigure(0, minsize=WIDTH-HEIGHT, weight=1)
         frame_right.rowconfigure(1, weight=1)
-        frame_up = ttk.Frame(frame_right)
+        self.frame_up = frame_up = ttk.Frame(frame_right)
         frame_up.grid(column=0, row=0, sticky="nesw")
         frame_up.columnconfigure(0, weight=1)
         frame_up.grid_configure(padx=PADDING, pady=PADDING)
-        self.title = ttk.Label(frame_up, text="", anchor="center",
+        self.track = ttk.Label(frame_up, text="", anchor="center",
                                font=font(FONTSIZE+8, weight="bold"),
                                justify="center",
                                wraplength=WIDTH-HEIGHT-2*PADDING)
-        self.title.grid(column=0, row=0, sticky="ew")
+        self.track.grid(column=0, row=0, sticky="ew")
         self.artist = ttk.Label(frame_up, text="No Album", anchor="center",
                                 font=font(FONTSIZE+4, slant="italic"),
                                 justify="center",
@@ -1230,7 +1530,7 @@ class MainApplication(ttk.Frame):
 
         self.track_tooltip = TrackTooltip(self.tree, self.always_on_top)
 
-        frame_bottom = ttk.Frame(frame_right)
+        self.frame_bottom = frame_bottom = ttk.Frame(frame_right)
         frame_bottom.grid(column=0, row=2, sticky="nesw")
         frame_bottom.columnconfigure(0, minsize=int(50 * SCALING))
         frame_bottom.columnconfigure(1, weight=1)
@@ -1241,6 +1541,7 @@ class MainApplication(ttk.Frame):
                                            command=self.playpause,
                                            takefocus=0, state="disabled")
         self.playpause_button.grid(column=0, row=0, sticky="nesw")
+        self.playpause_button.update_idletasks()
 
         slider_frame = ttk.Frame(frame_bottom, height=int(8 * SCALING))
         slider_frame.grid(column=1, row=0, sticky="ew", padx=PADDING/2)
@@ -1261,9 +1562,9 @@ class MainApplication(ttk.Frame):
         self.playhead_label.grid(column=1, row=1, sticky="ns")
         self.playhead = None
 
-        slider_frame = ttk.Frame(frame_bottom, height=int(8 * SCALING))
-        slider_frame.grid(column=2, row=0, sticky="ew", padx=PADDING/2)
-        self.volume_slider = ttk.Progressbar(slider_frame,
+        self.volume_frame = ttk.Frame(frame_bottom, height=int(8 * SCALING))
+        self.volume_frame.grid(column=2, row=0, sticky="ew", padx=PADDING/2)
+        self.volume_slider = ttk.Progressbar(self.volume_frame,
                                              orient="horizontal",
                                              mode='determinate',
                                              length=int(50 * SCALING),
@@ -1276,7 +1577,8 @@ class MainApplication(ttk.Frame):
 
         self.trackinfo = ttk.Label(frame_bottom, text="", anchor="center",
                                    font=font(FONTSIZE-2))
-        self.trackinfo.grid(column=1, row=2, pady=(PADDING/2, 0))
+        self.trackinfo.grid(column=0, row=2, columnspan=3, sticky="ew",
+                            pady=(PADDING/2, 0))
 
 
         for child in self.winfo_children():
@@ -1284,56 +1586,55 @@ class MainApplication(ttk.Frame):
 
     def create_bindings(self):
 
-        self.parent.bind("<Configure>", self.schedule_resize)  #self.truncate_titles)
+        self.bind("<Configure>", self.schedule_resize)  #self.truncate_titles)
 
         if tkinterdnd2 is not None:
             def load_album(e):
                 self.clear()
-                self.parent.after(1,
-                                  lambda: self.load_album(e.data.strip("{}")))
-            self.parent.drop_target_register(tkinterdnd2.DND_FILES)
-            self.parent.dnd_bind('<<Drop>>', load_album)
+                self.after(1, lambda: self.load_album(e.data.strip("{}")))
+            self.drop_target_register(tkinterdnd2.DND_FILES)
+            self.dnd_bind('<<Drop>>', load_album)
 
         # Keyboard (global)
         if platform.system() == "Darwin":
             modifier = "Command"
         else:
             modifier = "Control"
-        self.parent.bind(f"<{modifier}-o>", self._open_album)
-        self.parent.bind(f"<{modifier}-Key-1>",
-                         lambda e: self.set_view_preset("minimal"))
-        self.parent.bind(f"<{modifier}-Key-2>",
-                         lambda e: self.set_view_preset("compact"))
-        self.parent.bind(f"<{modifier}-Key-3>",
-                         lambda e: self.set_view_preset("small"))
-        self.parent.bind(f"<{modifier}-Key-4>",
-                         lambda e: self.set_view_preset("default"))
-        self.parent.bind(f"<{modifier}-Key-5>",
-                         lambda e: self.set_view_preset("large"))
-        self.parent.bind(f"<{modifier}-Key-6>",
-                         lambda e: self.set_view_preset("custom1"))
-        self.parent.bind(f"<{modifier}-Key-7>",
-                         lambda e: self.set_view_preset("custom2"))
-        self.parent.bind(f"<{modifier}-Key-8>",
-                         lambda e: self.set_view_preset("custom3"))
-        self.parent.bind(f"<{modifier}-Key-9>",
-                         lambda e: self.set_view_preset("custom4"))
+        self.bind(f"<{modifier}-o>", self._open_album)
+        self.bind(f"<{modifier}-Key-1>",
+                  lambda e: self.set_view_preset("minimal"))
+        self.bind(f"<{modifier}-Key-2>",
+                  lambda e: self.set_view_preset("compact"))
+        self.bind(f"<{modifier}-Key-3>",
+                  lambda e: self.set_view_preset("small"))
+        self.bind(f"<{modifier}-Key-4>",
+                  lambda e: self.set_view_preset("default"))
+        self.bind(f"<{modifier}-Key-5>",
+                  lambda e: self.set_view_preset("large"))
+        self.bind(f"<{modifier}-Key-6>",
+                  lambda e: self.set_view_preset("custom1"))
+        self.bind(f"<{modifier}-Key-7>",
+                  lambda e: self.set_view_preset("custom2"))
+        self.bind(f"<{modifier}-Key-8>",
+                  lambda e: self.set_view_preset("custom3"))
+        self.bind(f"<{modifier}-Key-9>",
+                  lambda e: self.set_view_preset("custom4"))
 
-        self.parent.bind(f"<{modifier}-Key-0>", self.fit_to_slides)
+        self.bind(f"<{modifier}-Key-0>", self.fit_to_slides)
         if platform.system() == "Darwin":
-            self.parent.bind(f"<{modifier}-F11>", self.toggle_fullscreen)
-            self.parent.bind(f"<{modifier}-F1>",
-                             lambda e: HelpDialogue(self.master))
+            self.bind(f"<{modifier}-F11>", self.toggle_fullscreen)
+            self.bind(f"<{modifier}-F1>",
+                      lambda e: AboutDialogue(self))
         else:
-            self.parent.bind(f"<{modifier}-m>", self.toggle_show_menubar)
-            self.parent.bind("<F11>", self.toggle_fullscreen)
-            self.parent.bind("<F1>", lambda e: HelpDialogue(self.master))
-        self.parent.bind(f"<{modifier}-q>", lambda e: self.quit())
+            self.bind(f"<{modifier}-m>", self.toggle_show_menubar)
+            self.bind("<F11>", self.toggle_fullscreen)
+            self.bind("<F1>", lambda e: AboutDialogue(self))
+        self.bind(f"<{modifier}-q>", lambda e: self.quit())
 
-        self.parent.bind("<Down>", lambda e: self.increment_track(1))
-        self.parent.bind("j", lambda e: self.increment_track(1))
-        self.parent.bind("<Up>", lambda e: self.increment_track(-1))
-        self.parent.bind("k", lambda e: self.increment_track(-1))
+        self.bind("<Down>", lambda e: self.increment_track(1))
+        self.bind("j", lambda e: self.increment_track(1))
+        self.bind("<Up>", lambda e: self.increment_track(-1))
+        self.bind("k", lambda e: self.increment_track(-1))
 
         self._first_g_key_pressed = False
         self._first_g_key_time = self.now()
@@ -1348,16 +1649,16 @@ class MainApplication(ttk.Frame):
                     self._first_g_key_pressed = True
                 self._first_g_key_time = self.now()
 
-        self.parent.bind("<Home>", lambda e: self.increment_track(-9999))
-        self.parent.bind("<g>", goto_first_track_vim)
+        self.bind("<Home>", lambda e: self.increment_track(-9999))
+        self.bind("<g>", goto_first_track_vim)
 
-        self.parent.bind("<End>", lambda e: self.increment_track(9999))
-        self.parent.bind("<G>", lambda e: self.increment_track(9999))
+        self.bind("<End>", lambda e: self.increment_track(9999))
+        self.bind("<G>", lambda e: self.increment_track(9999))
 
-        self.parent.bind(f"<Right>", lambda e: self.increment_playhead(1))
-        self.parent.bind("l", lambda e: self.increment_playhead(1))
-        self.parent.bind("<Left>", lambda e: self.increment_playhead(-1))
-        self.parent.bind("h", lambda e: self.increment_playhead(-1))
+        self.bind(f"<Right>", lambda e: self.increment_playhead(1))
+        self.bind("l", lambda e: self.increment_playhead(1))
+        self.bind("<Left>", lambda e: self.increment_playhead(-1))
+        self.bind("h", lambda e: self.increment_playhead(-1))
 
         def seek_to_beginning(e):
             if self.loaded_album is not None:
@@ -1366,13 +1667,13 @@ class MainApplication(ttk.Frame):
                 self.playhead = 0
                 self.player.seek(0.0)
 
-        self.parent.bind("0", lambda e: self.increment_playhead(-100))
-        self.parent.bind("<w>", lambda e: self.increment_playhead(-100))
+        self.bind("0", lambda e: self.increment_playhead(-100))
+        self.bind("<w>", lambda e: self.increment_playhead(-100))
 
-        self.parent.bind(f"<Shift-Up>", lambda e: self.increment_volume(5))
-        self.parent.bind(f"<K>", lambda e: self.increment_volume(5))
-        self.parent.bind(f"<Shift-Down>", lambda e: self.increment_volume(-5))
-        self.parent.bind(f"<J>", lambda e: self.increment_volume(-5))
+        self.bind(f"<Shift-Up>", lambda e: self.increment_volume(5))
+        self.bind(f"<K>", lambda e: self.increment_volume(5))
+        self.bind(f"<Shift-Down>", lambda e: self.increment_volume(-5))
+        self.bind(f"<J>", lambda e: self.increment_volume(-5))
 
         def playpause():
             if hasattr(self, "player"):
@@ -1386,27 +1687,27 @@ class MainApplication(ttk.Frame):
                     if self.selected_track_id != playing_id:
                         self.playpause()
 
-        self.parent.bind("<Return>", lambda e: playpause())
-        self.parent.bind("<space>", lambda e: playpause())
+        self.bind("<Return>", lambda e: playpause())
+        self.bind("<space>", lambda e: playpause())
 
-        self.parent.bind(f"<Shift-Right>", lambda e: self.switch_image(1))
-        self.parent.bind(f"<L>", lambda e: self.switch_image(1))
-        self.parent.bind(f"<Shift-Left>", lambda e: self.switch_image(-1))
-        self.parent.bind(f"<H>", lambda e: self.switch_image(-1))
-        self.parent.bind("<parenright>",
-                         lambda e: self.switch_image(-9999))
-        self.parent.bind("<W>",
+        self.bind(f"<Shift-Right>", lambda e: self.switch_image(1))
+        self.bind(f"<L>", lambda e: self.switch_image(1))
+        self.bind(f"<Shift-Left>", lambda e: self.switch_image(-1))
+        self.bind(f"<H>", lambda e: self.switch_image(-1))
+        self.bind("<parenright>",
+                  lambda e: self.switch_image(-9999))
+        self.bind("<W>",
                          lambda e: self.switch_image(-9999))
 
         # Mouse (global)
-        self.parent.bind("<Button-1>", self.close_context_menu)
+        self.bind("<Button-1>", self.close_context_menu)
         if platform.system() == "Darwin":
             if tk.TclVersion >= 9:
-                self.parent.bind("<Button-3>", self.show_context_menu)
+                self.bind("<Button-3>", self.show_context_menu)
             else:
-                self.parent.bind("<Button-2>", self.show_context_menu)
+                self.bind("<Button-2>", self.show_context_menu)
         else:
-            self.parent.bind("<Button-3>", self.show_context_menu)
+            self.bind("<Button-3>", self.show_context_menu)
 
 
         # Mouse (specific widgets)
@@ -1565,16 +1866,17 @@ class MainApplication(ttk.Frame):
 
     def clear(self):
         self.track_tooltip.deactivate()
-        self.parent.title("ZAP")
+        self.title("ZAP")
         self.hide_image()
         self.show_image(-1)
         self.loaded_album = None
         if self.playing_track_id is not None:
             self.pause()
+            self.player.clear()
         for i in self.tree.get_children():
             self.tree.delete(i)
         self.remove_arrows()
-        self.title["text"] = ""
+        self.track["text"] = ""
         self.artist["text"] = "Opening Album..."
         self.info["text"] = ""
         for i in self.tree.get_children():
@@ -1587,14 +1889,247 @@ class MainApplication(ttk.Frame):
         self.create_menu()
         self.update()
 
+    def handle_ffmpeg_download(self):
+        def show_overlay():
+            rgb = [x / 65535 for x in self.winfo_rgb(
+                self.style.lookup('TFrame', 'background'))]
+            bg_colour = get_hex_colour(rgb)
+            highlight_colour = get_hex_colour(rgb, 0.52)
+            self._overlay = tk.Frame(self, bg=bg_colour,
+                                     padx=PADDING/2, pady=PADDING*3/4,
+                                     #highlightthickness=1,
+                                     #highlightbackground=highlight_colour
+                                     )
+            self._overlay.grid_columnconfigure(0, weight=1)
+            self._overlay.grab_set()
+            self._overlay.text1 = ttk.Label(self._overlay,
+                                            text="Connecting to server...",
+                                            anchor=tk.CENTER)
+            self._overlay.text1.grid(row=0, column=0, sticky="nesw")
+            self._overlay.progressbar = ttk.Progressbar(
+                self._overlay, maximum=100)
+            self._overlay.progressbar.grid(row=1, column=0, sticky="nesw")
+            self._overlay.text2 = ttk.Label(
+                self._overlay, text="", anchor=tk.CENTER)
+            self._overlay.text2.grid(row=2, column=0, sticky="nesw")
+            for child in self._overlay.winfo_children():
+                child.grid_configure(padx=PADDING/2, pady=PADDING/4)
+            self._overlay.update_idletasks()
+            self._overlay.place(
+                #x=HEIGHT + (WIDTH-HEIGHT) / 2,
+                #y=HEIGHT - 50,
+                relx=0.5,# rely=0.5,
+                y=self.frame_up.winfo_reqheight() / 2,
+                relwidth=1.0,
+                height=self.frame_up.winfo_reqheight(),
+                #width=self.winfo_width() / 2,
+                #width=WIDTH-HEIGHT - PADDING, #self.winfo_width() / 2,
+                                #height=self.winfo_height() / 2,
+                anchor=tk.CENTER)
+
+        def poll_queue():
+            try:
+                while True:
+                    msg = self.msg_queue.get_nowait()
+                    if msg["type"] == "progress":
+                        pass
+                        #self._overlay.progressbar["value"] = msg["percents"]
+                        self.playhead_slider["value"] = msg["percents"]
+                        #self._overlay.text1["text"] = msg["message"]
+                        self.trackinfo["text"] = msg["message"]
+                        #self._overlay.text2["text"] = f"{msg['percents']} %"
+                        self.playhead_label["text"] = f"{msg['percents']}%"
+                    elif msg["type"] == "done":
+                        success()
+                        return
+                    elif msg["type"] == "error":
+                        handle_error(msg["error"])
+                        return
+            except queue.Empty:
+                pass
+            if self.winfo_exists():
+                self.after(10, poll_queue)
+
+        def run_download():
+            def _progress(count, total, message=''):
+                p = int(100.0 * count / float(total))
+                self.msg_queue.put({"type": "progress", "percents": p,
+                                    "message": message})
+
+            try:
+                download_ffmpeg(_progress)
+                self.msg_queue.put({"type": "done"})
+            except Exception as e:
+                self.msg_queue.put({"type": "error", "error": e})
+
+        def success():
+            try:
+                self.playhead_label["text"] = "100%"
+                messagebox.showinfo(title="Done",
+                                    message="FFmpeg libraries have been "
+                                    "downloaded successfully!",
+                                    parent=self)
+                cleanup()
+            except:
+                pass
+
+        def handle_error(e):
+            try:
+                if not hasattr(e, "status"):
+                    if messagebox.askretrycancel(
+                        title="Connection error",
+                        message="The download server could not be reached!\n\n"
+                        "Please check your internet connection and try again.",
+                        parent=self
+                    ):
+                        start_process()
+                    else:
+                        cleanup()
+                elif e.status == 404:
+                    platform = get_platform()
+                    messagebox.showerror(
+                        title="No download available",
+                        message="There is no download available for this "
+                        f"platform ({platform})!\n\nPlease manually install "
+                        "FFmpeg (shared) libraries (version 4, 5, 6, 7 or 8) "
+                        "on your system.",
+                        parent=self
+                    )
+                    cleanup()
+                else:
+                    if messagebox.askretrycancel(
+                        title="Download failed",
+                        message="The download has failed for an unknown "
+                        "reason!",
+                        icon="error",
+                            parent=self
+                    ):
+                        start_process()
+                    else:
+                        cleanup()
+            except:
+                pass
+
+        def cleanup():
+            try:
+                #self._overlay.destroy()
+                self.change_menu_state("normal")
+                self.resizable(True, True)
+                self.artist["text"] = "No Album"
+                self.frame_bottom.grid_rowconfigure(0, minsize=0)
+                self.playpause_button.grid()
+                self.playpause_label.grid()
+                self.playhead_slider["value"] = 0
+                self.volume_frame.grid()
+                self.volume_label.grid()
+                self.playhead_label["text"] = ""
+                self.trackinfo["text"] = ""
+                self.update_idletasks()
+                self.update()
+            except:
+                pass
+
+        def start_process():
+            self.change_menu_state("disabled")
+            self.resizable(False, False)
+            self.artist["text"] = "FFmpeg Download"
+
+            self.frame_bottom.grid_rowconfigure(
+                0, minsize=self.playpause_button.winfo_height())
+            self.playpause_button.grid_remove()
+            self.playpause_label.grid_remove()
+            self.volume_frame.grid_remove()
+            self.volume_label.grid_remove()
+            #self.update_idletasks()
+            #self.update()
+            #show_overlay()
+            self.msg_queue = queue.Queue()
+            threading.Thread(target=run_download, daemon=True).start()
+            poll_queue()
+
+        #def start():
+        #    def _progress(count, total, message=''):
+        #        """Progress callback function"""
+
+        #        percents = int(100.0 * count / float(total))
+        #        self._overlay.progressbar["value"] = percents
+        #        self._overlay.text1["text"] = message
+        #        self._overlay.text2["text"] = f"{percents} %"
+        #        self.update()
+
+        #    try:
+        #        self._ffmpeg_is_downloading = True
+        #        self.update()
+        #        download_ffmpeg(_progress)
+        #        self._overlay.grab_release()
+        #        self._overlay.destroy()
+        #        messagebox.showinfo(title="Done",
+        #                            message="FFmpeg libraries have been "
+        #                            "downloaded successfully!",
+        #                            parent=self)
+        #    except Exception as e:
+        #        try:
+        #            if not hasattr(e, "status"):
+        #                if messagebox.askretrycancel(title="Connection error",
+        #                                             message="The download server "
+        #                                             "could not be reached!\n\n"
+        #                                             "Please check your internet "
+        #                                             "connection and try again.",
+        #                                             parent=self):
+        #                    start()
+        #                else:
+        #                    self._overlay.grab_release()
+        #                    self._overlay.destroy()
+
+        #            elif e.status == 404:
+        #                platform = get_platform()
+        #                messagebox.showerror(title="No download available",
+        #                                     message="There is no download "
+        #                                     "available for this platform "
+        #                                     f"({platform})!\n\n"
+        #                                     "Please manually install FFmpeg "
+        #                                     "(shared) libraries (version 4, 5, "
+        #                                     "6, 7 or 8) on your system.",
+        #                                     parent=self)
+        #                self._overlay.grab_release()
+        #                self._overlay.destroy()
+
+        #            else:
+        #                raise Exception
+        #        except Exception:
+        #            if messagebox.askretrycancel(title="Download failed",
+        #                                         message="The download has failed "
+        #                                         "for an unknown reason!",
+        #                                         icon="error",
+        #                                         parent=self):
+        #                start()
+        #            else:
+        #                self._overlay.grab_release()
+        #                self._overlay.destroy()
+
+
+        if messagebox.askyesno(title="Download FFmpeg",
+                               message="Required FFmpeg libraries could not"
+                               " be found on the system!\n\n"
+                               "Attempt to download a local copy?",
+                               parent=self):
+            start_process()
+
+
     def create_player(self, gapless=False):
         if gapless:
-            self.player = GaplessAudioPlayer(self.audio_output.get(),
-                                             self.output_format.get())
+            self.player = GaplessAudioPlayer(self.audio_system,
+                                             self.sample_format,
+                                             self.sample_rate,
+                                             self.channel_mode,
+                                             self.hq_resampling)
 
         else:
-            self.player = AudioPlayer(self.audio_output.get(),
-                                      self.output_format.get())
+            self.player = AudioPlayer(self.audio_system,
+                                      self.sample_format,
+                                      self.sample_rate,
+                                      self.channel_mode,
+                                      self.hq_resampling)
 
         def next_gapless():
             if self.selected_track_id + 1 < len(self.loaded_album.tracklist):
@@ -1614,7 +2149,7 @@ class MainApplication(ttk.Frame):
                     if current_time - start >= max_time:
                         break
                     self.playhead = 100 / dur * (pos + self.now() - start)
-                    self.parent.update()
+                    self.update()
                     sleep_time = tickspeed - (self.now() - current_time)
                     if sleep_time > 0:
                         time.sleep(sleep_time)
@@ -1657,7 +2192,7 @@ class MainApplication(ttk.Frame):
                 if current_time - start >= max_time:
                     break
                 self.playhead = 100 / dur * (pos + self.now() - start)
-                self.parent.update()
+                self.update()
                 sleep_time = tickspeed - (self.now() - current_time)
                 if sleep_time > 0:
                     time.sleep(sleep_time)
@@ -1710,12 +2245,13 @@ class MainApplication(ttk.Frame):
             file = os.path.split(path)[-1]
             messagebox.showerror(
                 title="Error opening album",
-                message=f'"{file}" does not seem to be a valid Zipped Album!')
+                message=f'"{file}" does not seem to be a valid Zipped Album!',
+                parent=self.master)
             return
 
         self.loaded_album.prepare_booklet_pages(self.wait_cover_image)
         self.show_image()
-        self.title["text"] = self.loaded_album.title
+        self.track["text"] = self.loaded_album.title
         self.artist["text"] = self.loaded_album.artist
         year = self.loaded_album.year
         n_tracks = len(self.loaded_album.tracklist)
@@ -1740,7 +2276,7 @@ class MainApplication(ttk.Frame):
         # Hack: For some reason the treeview colums do not stretch correctly
         # initially, so hardcode all column sizes
         if self.fullscreen.get():
-            size, pos_x, pos_y = self.parent.winfo_geometry().split("+")
+            size, pos_x, pos_y = self.winfo_geometry().split("+")
             width, height = [int(x) for x in size.split("x")]
         else:
             width = WIDTH
@@ -1773,9 +2309,9 @@ class MainApplication(ttk.Frame):
         self.set_title()
         self.create_menu()
 
-    def make_album(self, path, exact=False):
+    def make_album(self, directory, filename, png, load, exact=False):
         # Clear current state
-        self.parent.title("ZAP")
+        self.title("ZAP")
         self.hide_image()
         self.show_image(-1)
         self.loaded_album = None
@@ -1784,25 +2320,33 @@ class MainApplication(ttk.Frame):
         for i in self.tree.get_children():
             self.tree.delete(i)
         self.remove_arrows()
-        self.title["text"] = ""
+        self.track["text"] = ""
         self.artist["text"] = "Creating Album..."
         self.info["text"] = ""
-        self.parent.update()
+        self.update()
 
         # Make new album
-        filename = None
+        path = None
         try:
-            filename = create_zipped_album(path)
-        except:
+            path = create_zipped_album(directory, filename, png)
+        except Exception as e:
             self.artist["text"] = "No Album"
-            dir_ = os.path.split(path)[-1]
-            messagebox.showerror(
-                title="Error creating album",
-                message=f'"{dir_}" does not seem to be in a format to create '
-                'a Zipped Album from!')
+            dir_ = os.path.split(directory)[-1]
+            if isinstance(e, AssertionError):
+                messagebox.showerror(
+                    title="Error creating album",
+                    message=f'Directory "{dir_}" does not seem to be in a'
+                    'format to create a Zipped Album from!',
+                    parent=self)
+            else:
+                messagebox.showerror(
+                    title="Error creating album",
+                    message=f'File "{filename}" could not be created!',
+                    parent=self)
+
             return
-        if filename is not None:
-            self.load_album(filename, exact=exact)
+        if load and path is not None:
+            self.load_album(path, exact=exact)
 
     def truncate_titles(self, event=None):
         if self.loaded_album is None:
@@ -1867,12 +2411,15 @@ class MainApplication(ttk.Frame):
             bitrate_str = ""
         try:
             samplerate = track["streaminfo"]["sample_rate"]
-            samplerate_str = f"{samplerate} Hz • "
+            if "Automatic" != self.player.sample_rate != f"{samplerate} Hz":
+                samplerate_str = f"{samplerate}→{self.player.sample_rate} • "
+            else:
+                samplerate_str = f"{samplerate} Hz • "
         except:
             samplerate_str = ""
         try:
             bitdepth = track["streaminfo"]["bit_depth"]
-            if self.player.output_format == "16-bit" and bitdepth > 16:
+            if self.player.sample_format == "16-bit" and bitdepth > 16:
                 bitdepth_str = f"{bitdepth}→16 bit • "
             else:
                 bitdepth_str = f"{bitdepth} bit • "
@@ -1901,7 +2448,7 @@ class MainApplication(ttk.Frame):
         self.playpause_label["text"] = "Playing"
         self.playing_track_id = self.selected_track_id
         self.set_title()
-        self.parent.update()
+        self.update()
         if self.player.clear_on_queue:
             self.player.queue(self.loaded_album.get_audio(
                 self.selected_track_id))
@@ -1995,7 +2542,7 @@ class MainApplication(ttk.Frame):
             width = size[0]
             height = size[1]
         else:
-            size, pos_x, pos_y = self.parent.winfo_geometry().split("+")
+            size, pos_x, pos_y = self.winfo_geometry().split("+")
             width, height = [int(x) for x in size.split("x")]
         self.canvas["width"] = height
         self.canvas["height"] = height
@@ -2034,16 +2581,16 @@ class MainApplication(ttk.Frame):
             #self.fit_to_slides()
             #return
             if platform.system() == "Windows":
-                self.parent.attributes("-alpha", 0)
-                self.parent.state('zoomed')
-                self.parent.update()
-                max_width  = self.parent.winfo_width()
-                max_height = self.parent.winfo_height()
-                self.parent.state('normal')
-                self.parent.update()
-                self.parent.attributes("-alpha", 1)
+                self.attributes("-alpha", 0)
+                self.state('zoomed')
+                self.update()
+                max_width  = self.winfo_width()
+                max_height = self.winfo_height()
+                self.state('normal')
+                self.update()
+                self.attributes("-alpha", 1)
             else:
-                max_width, max_height = self.parent.maxsize()
+                max_width, max_height = self.maxsize()
             if max_width > max_height:
                 width = max_height + (WIDTH - HEIGHT)
                 height = max_height
@@ -2055,7 +2602,7 @@ class MainApplication(ttk.Frame):
                 return
             size = self.config.get("VIEW", f"preset_{preset}")
             width, height = size.split("x")
-        self.parent.geometry(f"{width}x{height}")
+        self.geometry(f"{width}x{height}")
 
     def store_custom_view_preset(self, number, event=None):
         #size = self.parent.geometry().split("+")[0]
@@ -2068,12 +2615,12 @@ class MainApplication(ttk.Frame):
 
     def fit_to_slides(self, event=None):
         if not self.fullscreen.get():
-            width = self.parent.winfo_width() - (WIDTH - HEIGHT)
-            height = self.parent.winfo_height()
+            width = self.winfo_width() - (WIDTH - HEIGHT)
+            height = self.winfo_height()
             if width > height:
-                self.parent.geometry(f"{height + (WIDTH - HEIGHT)}x{height}")
+                self.geometry(f"{height + (WIDTH - HEIGHT)}x{height}")
             elif width < height:
-                self.parent.geometry(f"{width + (WIDTH - HEIGHT)}x{width}")
+                self.geometry(f"{width + (WIDTH - HEIGHT)}x{width}")
 
     def toggle_show_menubar(self, event=None):
         if event is not None:  # if triggered by keybinding, update checkbox
@@ -2088,6 +2635,7 @@ class MainApplication(ttk.Frame):
         if not self.config.has_section("VIEW"):
             self.config.add_section("VIEW")
         self.config.set("VIEW", "show_menubar", str(int(show_menubar)))
+
    #         self.show_menu_binding = self.parent.bind("<Alt_L>",
    #                                                   self.toggle_temp_menubar)
    #         self.temp_show_menubar = False
@@ -2112,7 +2660,7 @@ class MainApplication(ttk.Frame):
    #                                                   self.toggle_temp_menubar)
 
     def toggle_always_on_top(self, event=None):
-        self.parent.attributes('-topmost', self.always_on_top.get())
+        self.attributes('-topmost', self.always_on_top.get())
         if not self.config.has_section("VIEW"):
             self.config.add_section("VIEW")
         self.config.set("VIEW", "always_on_top",
@@ -2124,20 +2672,20 @@ class MainApplication(ttk.Frame):
         #self.fullscreen = not self.fullscreen
         fullscreen = self.fullscreen.get()
         if fullscreen:
-            self._last_geometry = self.parent.geometry()
+            self._last_geometry = self.geometry()
         else:
-            self.parent.overrideredirect(False)
+            self.overrideredirect(False)
         self.columnconfigure(0, weight=int(not fullscreen))
         self.columnconfigure(1, weight=int(fullscreen))
         #if self.fullscreen:
         #    self.parent.withdraw()
-        self.parent.attributes("-fullscreen", fullscreen)
+        self.attributes("-fullscreen", fullscreen)
         if fullscreen:
             self.update()
             self.update()
             #self.parent.deiconify()
-            self.parent.overrideredirect(True)
-            size, pos_x, pos_y = self.parent.winfo_geometry().split("+")
+            self.overrideredirect(True)
+            size, pos_x, pos_y = self.winfo_geometry().split("+")
             width, height = [int(x) for x in size.split("x")]
             #self.parent.state("normal")
             wraplength = width - height - 2 * PADDING
@@ -2145,11 +2693,11 @@ class MainApplication(ttk.Frame):
             geometry = self._last_geometry
             size, pos_x, pos_y = geometry.split("+")
             width, height = [int(x) for x in size.split("x")]
-            self.parent.geometry(geometry)
+            self.geometry(geometry)
             wraplength = WIDTH - HEIGHT - 2 * PADDING
         self.size = (width, height)
         self.resize((width, height))
-        self.title.configure(wraplength=wraplength)
+        self.track.configure(wraplength=wraplength)
         self.artist.configure(wraplength=wraplength)
         #self.parent.columnconfigure(0, weight=int(self.fullscreen))
         #self.parent.columnconfigure(1, weight=int(not self.fullscreen))
@@ -2171,17 +2719,19 @@ class MainApplication(ttk.Frame):
         self.config.set("PLAYBACK", "repeat",
                         str(int(self.repeat_album.get())))
 
-    def set_audio_output(self, event=None):
-        for output_format in AudioPlayer.available_output_formats["Silent"]:
-            if output_format in AudioPlayer.available_output_formats[
-                    self.audio_output.get()]:
-                self.playback_output_format_menu.entryconfig(output_format,
-                                                             state="normal")
-            else:
-                self.playback_output_format_menu.entryconfig(output_format,
-                                                             state="disabled")
-                if output_format == self.output_format.get():
-                    self.output_format.set("Automatic")
+    def apply_setting(self, section, key, value):
+        try:
+            setattr(self, key, value)
+        except AttributeError:
+            return
+        section_name = f"SETTINGS.{section.upper()}"
+        if isinstance(value, bool):
+            value = str(int(value))
+        if not self.config.has_section(section_name):
+            self.config.add_section(section_name)
+        self.config.set(section_name, key, value)
+
+    def restart_player(self):
         if self.loaded_album:
             gapless = isinstance(self.player, GaplessAudioPlayer)
             was_playing = False
@@ -2196,12 +2746,38 @@ class MainApplication(ttk.Frame):
             if was_playing:
                 self.play()
                 self.player.seek(pause_time + (time.perf_counter() - start))
-        if not self.config.has_section("PLAYBACK"):
-            self.config.add_section("PLAYBACK")
-        self.config.set("PLAYBACK", "audio_output",
-                        self.audio_output.get())
 
-    def set_output_format(self, event=None):
+    def set_audio_system(self, event=None):
+        #for sample_format in AudioPlayer.available_sample_formats["Silent"]:
+        #    if sample_format in AudioPlayer.available_sample_formats[
+        #            self.audio_system.get()]:
+        #        self.playback_output_format_menu.entryconfig(output_format,
+        #                                                     state="normal")
+        #    else:
+        #        self.playback_output_format_menu.entryconfig(output_format,
+        #                                                     state="disabled")
+        #        if output_format == self.output_format.get():
+        #            self.output_format.set("Automatic")
+        if self.loaded_album:
+            gapless = isinstance(self.player, GaplessAudioPlayer)
+            was_playing = False
+            if self.player.is_playing:
+                start = time.perf_counter()
+                self.player.pause()
+                pause_time = self.player.time
+                was_playing = True
+            del self.player
+            self.create_player(gapless=gapless)
+            self.load_track()
+            if was_playing:
+                self.play()
+                self.player.seek(pause_time + (time.perf_counter() - start))
+        if not self.config.has_section("SETTINGS.AUDIO"):
+            self.config.add_section("SETTINGS.AUDIO")
+        self.config.set("SETTINGS.AUDIO", "audio_system",
+                        self.audio_system.get())
+
+    def set_sample_format(self, event=None):
         if self.loaded_album:
             gapless = isinstance(self.player, GaplessAudioPlayer)
             was_playing = False
@@ -2215,10 +2791,30 @@ class MainApplication(ttk.Frame):
             if was_playing:
                 self.play()
                 self.player.seek(pause_time + (time.perf_counter() - start))
-        if not self.config.has_section("PLAYBACK"):
-            self.config.add_section("PLAYBACK")
-        self.config.set("PLAYBACK", "output_format",
-                        self.output_format.get())
+        if not self.config.has_section("SETTINGS.AUDIO"):
+            self.config.add_section("SETTINGS.AUDIO")
+        self.config.set("SETTINGS.AUDIO", "sample_format",
+                        self.sample_format.get())
+
+    def set_sample_rate(self, event=None):
+        if self.loaded_album:
+            gapless = isinstance(self.player, GaplessAudioPlayer)
+            was_playing = False
+            if self.player.is_playing:
+                start = time.perf_counter()
+                self.player.pause()
+                pause_time = self.player.time
+                was_playing = True
+            del self.player
+            self.create_player(gapless=gapless)
+            if was_playing:
+                self.play()
+                self.player.seek(pause_time + (time.perf_counter() - start))
+        if not self.config.has_section("SETTINGS.AUDIO"):
+            self.config.add_section("SETTINGS.AUDIO")
+        self.config.set("SETTINGS.AUDIO", "sample_rate",
+                        self.sample_rate.get())
+
 
     def set_title(self):
         title = "ZAP"
@@ -2236,7 +2832,7 @@ class MainApplication(ttk.Frame):
                     self.playing_track_id]["display"][1]
                 prefix = f"{tracknumber} • {tracktitle} | "
                 title = prefix + title
-        self.parent.title(title)
+        self.title(title)
 
     def quit(self):
         #if not self.config.has_section("GENERAL"):
@@ -2285,56 +2881,52 @@ def run():
         dpi = root.winfo_fpixels('1i')
         root.tk.call('tk', 'scaling', SCALING * (dpi / 72.0))
     root.withdraw()
-    app = MainApplication(root, padding="0 0 0 0")
+    app = MainApplication(root)#, padding="0 0 0 0")
     app.set_title()
     if platform.system() == "Windows":
         root.iconbitmap(os.path.abspath(os.path.join(
             os.path.split(__file__)[0], "zipped_album_icon.ico")))
     else:
-        root.tk.call('wm', 'iconphoto', root._w,
+        root.tk.call('wm', 'iconphoto', app._w,
                      tk.PhotoImage(file=os.path.abspath(os.path.join(
                 os.path.split(__file__)[0], "zipped_album_icon.png"))))
-    app.pack(side="top", fill="both", expand=True)
-    root.geometry(f"{WIDTH}x{HEIGHT}+0+0")
-    root.update()
-    root.deiconify()
-    root.minsize(WIDTH-HEIGHT, 0)
-    root.lift()
+    #app.pack(side="top", fill="both", expand=True)
+    app.geometry(f"{WIDTH}x{HEIGHT}+0+0")
+    app.update()
+    app.deiconify()
+    app.minsize(WIDTH-HEIGHT, 0)
+    app.lift()
 
     #size, pos_x, pos_y = app._last_geometry.split("+")
     #width, height = [int(x) for x in size.split("x")]
-    root.geometry(f"{WIDTH-1}x{HEIGHT-1}+0+0")  # hack for removing empty scrollbar
+    app.geometry(f"{WIDTH-1}x{HEIGHT-1}+0+0")  # hack for removing empty scrollbar
     #root.geometry(f"{width-1}x{height-1}{pos_x}{pos_y}")  # hack for removing empty scrollbar
-    root.update_idletasks()
-    root.geometry(f"{WIDTH}x{HEIGHT}")
+    app.update_idletasks()
+    app.geometry(f"{WIDTH}x{HEIGHT}")
     #root.geometry(app._last_geometry)
+
+    app.create_menu()
+    app.update()
 
     from .binaries import has_ffmpeg
     if not has_ffmpeg():
-        app.change_menu_state("disabled")
-        if messagebox.askyesno(title="Download FFmpeg",
-                               message="Required FFmpeg libraries could not"
-                               " be found on the system!\n\n"
-                               "Attempt to download a local copy?"):
-            DownloadFFmpegDialogue(app).start()
-            app.change_menu_state("normal")
+        app.handle_ffmpeg_download()
 
     try:
         global AudioPlayer, GaplessAudioPlayer
         from .player import AudioPlayer, GaplessAudioPlayer
-        app.audio_output.set(
-            list(AudioPlayer.available_audio_outputs.keys())[0])
+        if app.audio_system == "":
+            app.audio_system = \
+                list(AudioPlayer.available_audio_systems.keys())[0]
 
     except RuntimeError as e:
         if "ffmpeg" in repr(e).lower():
             messagebox.showerror(title="FFmpeg error",
                                  message="There was an error loading the "
                                          "required FFmpeg libraries!"
-                                         "\n\nThe application will close now.")
+                                         "\n\nThe application will close now.",
+                                 parent=app)
             sys.exit()
-
-
-    app.create_menu()
 
     try:
         if "--exact" in sys.argv:
@@ -2356,16 +2948,17 @@ def run():
             else:
                 messagebox.showerror(
                 title="Error opening album",
-                message=f'The file "{sys.argv[-1]}" does not exist!')
+                message=f'The file "{sys.argv[-1]}" does not exist!',
+                parent=self.master)
     except:
         pass
 
-    root.protocol('WM_DELETE_WINDOW', app.quit)
+    app.protocol('WM_DELETE_WINDOW', app.quit)
     if platform.system() == "Darwin":
         root.createcommand("tk::mac::Quit" , app.quit)
 
     app.create_bindings()
-    root.focus_force()
+    app.focus_force()
 
     root.mainloop()
 

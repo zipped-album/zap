@@ -112,7 +112,7 @@ def download_ffmpeg(progress=None):
     url_base = "https://github.com/zipped-album/zap-binaries/raw/main/ffmpeg"
 
     if progress:
-        progress(0, 100, "")
+        progress(0, 100, "Preparing to download...")
 
     for version in (7, 6, 5, 4):
         try:
@@ -149,16 +149,16 @@ def download_ffmpeg(progress=None):
                     percents_new = int(100.0 * file_size_dl / float(file_size))
                     if percents_new > percents:
                         percents = percents_new
-                        progress(percents, 100, filename)
+                        progress(percents, 100, os.path.splitext(filename)[0])
         except Exception:
             if progress:
-                progress(0, 100, filename)
+                progress(0, 100, os.path.splitext(filename)[0])
             chunk = u.read()
             while chunk:
                 f.write(chunk)
                 chunk = u.read()
         if progress:
-            progress(100, 100, filename)
+            progress(100, 100, os.path.splitext(filename)[0])
 
         path = os.path.abspath(os.path.join(os.path.split(__file__)[0], "lib"))
         if not os.path.isdir(path):
