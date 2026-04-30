@@ -14,11 +14,14 @@ try:
 except ImportError:
     certifi = None
 
+from .utils import get_config_folder
+
 
 def _f(q):
     try:
         import os
         import platform
+        from .utils import get_config_folder
         if platform.system() == "Windows":
             path = "PATH"
             sep = ";"
@@ -28,9 +31,9 @@ def _f(q):
         if not os.environ.get(path):
             os.environ[path] = ""
         os.environ[path] += sep + os.path.abspath(
-            os.path.join(os.path.split(__file__)[0], "lib"))
+            os.path.join(get_config_folder(), "ffmpeg"))
         import pyglet
-        pyglet.options['search_local_libs'] = True
+        #pyglet.options['search_local_libs'] = True
         q.put(pyglet.media.codecs.have_ffmpeg())
     except Exception:
         q.put(False)
@@ -112,7 +115,7 @@ def download_ffmpeg(progress=None):
     url_base = "https://github.com/zipped-album/zap-binaries/raw/main/ffmpeg"
 
     if progress:
-        progress(0, 100, "Preparing to download...")
+        progress(0, 100, "[Connecting to server]")
 
     for version in (7, 6, 5, 4):
         try:
@@ -149,7 +152,9 @@ def download_ffmpeg(progress=None):
                     percents_new = int(100.0 * file_size_dl / float(file_size))
                     if percents_new > percents:
                         percents = percents_new
-                        progress(percents, 100, os.path.splitext(filename)[0])
+                        progress(percents, 100, os.path.splitext(filename)[0] +
+                                 f" [{(file_size / (1024 * 1024)):.1f} MB]")
+
         except Exception:
             if progress:
                 progress(0, 100, os.path.splitext(filename)[0])
@@ -160,9 +165,9 @@ def download_ffmpeg(progress=None):
         if progress:
             progress(100, 100, os.path.splitext(filename)[0])
 
-        path = os.path.abspath(os.path.join(os.path.split(__file__)[0], "lib"))
+        path = os.path.abspath(os.path.join(get_config_folder(), "ffmpeg"))
         if not os.path.isdir(path):
-                os.makedirs(path)
+            os.makedirs(path)
 
         f_zip = ZipFile(f)
         check = f_zip.testzip()

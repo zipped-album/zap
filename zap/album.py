@@ -305,7 +305,7 @@ def _create_booklet_page(args):
     pdf.close()
 
 
-def create_zipped_album(directory, filename=None, as_png=True):
+def create_zipped_album(directory, filename=None, as_png=False):
     """Create a Zipped Album from a directory.
 
     Parameters

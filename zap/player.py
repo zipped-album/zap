@@ -5,6 +5,9 @@ import platform
 import tempfile
 from ctypes import c_double, c_uint64, c_void_p
 
+from .utils import get_config_folder
+
+
 if platform.system() == "Windows":
     path = "PATH"
     sep = ";"
@@ -13,13 +16,13 @@ else:
     sep = ":"
 if not os.environ.get(path):
     os.environ[path] = os.path.abspath(
-        os.path.join(os.path.split(__file__)[0], "lib"))
+        os.path.join(get_config_folder(), "ffmpeg"))
 else:
     os.environ[path] += sep + os.path.abspath(
-        os.path.join(os.path.split(__file__)[0], "lib"))
+        os.path.join(get_config_folder(), "ffmpeg"))
 
 import pyglet
-pyglet.options['search_local_libs'] = True
+#pyglet.options['search_local_libs'] = True
 pyglet.options['audio'] = ('silent')
 
 try:

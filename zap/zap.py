@@ -6,13 +6,13 @@ Zipped Album Player.
 
 """
 
+# TODO:
+# - create new app icon
+# - have the default album be created from the masks instead of extra image
+# - move more of run() into app class
 
 import os
-import io
-import gc
-import re
 import sys
-import copy
 import time
 import queue
 import random
@@ -20,7 +20,6 @@ import colorsys
 import platform
 import threading
 import configparser
-import dateutil.parser
 
 try:
     import tkinter as tk
@@ -31,53 +30,22 @@ try:
     from tkinter import messagebox
 except ImportError:
     print("Error: Tkinter not found!")
+    sys.exit()
 except ModuleNotFoundError:
     print("Error: Python not configured for Tk!")
     sys.exit()
 
-def verify_tkdnd_safe():
-    """Check if tkinterdnd2 can be fully initialized.
-
-    Returns the tkinterdnd2 module if safe, else None.
-
-    """
-
-    import subprocess
-
-    check_code = """
-import sys
-try:
-    import tkinterdnd2
-    root = tkinterdnd2.TkinterDnD.Tk()
-    root.withdraw()
-    root.destroy()
-    sys.exit(0)  # Success
-except Exception as e:
-    sys.exit(1)  # Failure
-"""
-    try:
-        # Run the check in an isolated process
-        result = subprocess.run(
-            [sys.executable, "-c", check_code],
-            capture_output=True,
-            timeout=5 # Prevent hanging on some Intel Mac builds
-        )
-
-        if result.returncode == 0:
-            import tkinterdnd2
-            return tkinterdnd2
-    except Exception:
-        pass
-    return None
-
-tkinterdnd2 = verify_tkdnd_safe()
-
 from PIL import ImageTk, Image
-from PIL import __version__ as pil_version
 
-from .__init__ import __author__, __version__
 from .album import ZippedAlbum, create_zipped_album
 from .binaries import has_ffmpeg, download_ffmpeg, get_platform
+from .utils import (safely_import_tkinterdnd2, get_hex_colour, is_venv,
+                    get_config_folder, FontBase)
+from .widgets import (AutoScrollbar, ResizingCanvas, CanvasProgressbar,
+                      TrackTooltip)
+from .dialogues import AboutDialogue, SettingsWindow, CreateAlbumDialogue
+
+tkinterdnd2 = safely_import_tkinterdnd2()
 
 
 if "--SCALING" in sys.argv:
@@ -90,11 +58,8 @@ elif "QT_SCREEN_SCALE_FACTORS" in os.environ:
 else:
     SCALING = 1
 
-_TK_SCALING = 1.0  # Gets updated to Tk scaling value once there is a Tk root
-
 if tk.TclVersion >= 9:
     SCALING = 1
-
 
 WIDTH = int(1024 * SCALING)
 HEIGHT = int(600 * SCALING)
@@ -110,34 +75,6 @@ else:
     FONTNAME = "Nimbus Sans"
     FONTSIZE = 10
 
-ABOUT_TEXT = """
- ╔═══════════════════════════════════ ZAP ═══════════════════════════════════╗
- ║                                                                           ║
- ║                       Zipped Album Player (v {ver})                       ║
- ║                                                                           ║
- ║                by Florian Krause <florian.krause@fladd.de>                ║
- ║                                                                           ║
- ╚═══════════════════════════════════════════════════════════════════════════╝
-
- ┌──── Keyboard navigation ──────────────────────────────────────────────────┐
- │                                                                           │
- │  Play/Pause: ............................. Space ......... or ... Return  │
- │  Select next track: ...................... Down .......... or ........ j  │
- │  Select previous track: .................. Up ............ or ........ k  │
- │  Select first track: ..................... Home .......... or ....... gg  │
- │  Select last track: ...................... End ........... or ........ G  │
- │  Seek forward: ........................... Right ......... or ........ l  │
- │  Seek backward: .......................... Left .......... or ........ h  │
- │  Seek to beginning: ...................... w ............. or ........ 0  │
- │  Show next slide: ........................ Shift+Right ... or ........ L  │
- │  Show previous slide: .................... Shift+Left .... or ........ H  │
- │  Show first slide: ....................... W ............. or ........ )  │
- │  Decrease volume: ........................ Shift+Down .... or ........ J  │
- │  Increase volume: ........................ Shift+Up....... or ........ K  │
- │                                                                           │
- └───────────────────────────────────────────────────────────────────────────┘
-""".format(ver=__version__)
-
 UPDATE_INTERVALL = 100  # in ms
 
 while True:
@@ -147,761 +84,59 @@ while True:
         COLOUR = f"#{r:02X}{g:02X}{b:02X}"
         break
 
-def _create_frame(self, x, y, r, **kwargs):
-    return self.create_rectangle(x-r, y-r, x+r, y+r, **kwargs)
-tk.Canvas.create_frame = _create_frame
-
-def _frame_coords(self, frame_id, x, y, r):
-    self.coords(frame_id, x-r, y-r, x+r, y+r)
-tk.Canvas.frame_coords = _frame_coords
-
-def _px(size):
-    if tk.TclVersion >= 9:
-        return round(size / _TK_SCALING)
-    else:
-        return size
-
-def font(size, weight="normal", slant="roman"):
-    """
-    The final 'Parity' function.
-    Matches your 8.6 look on a Tcl 9.0 Retina Mac.
-    """
-    # 1. We must 'inflate' the pixel request because Tcl 9 
-    # treats '-9' as physically smaller than 8.6 did.
-    # On M4, _TCL_RATIO is usually 1.33 or 2.0.
-    target_px = _px(size)
-
-    # 2. Return the STRING format (Braces handle spaces in font names)
-    # Result: "{Helvetica} -12 bold roman" 
-    return f"{{{FONTNAME}}} {target_px} {weight} {slant}"
-
-def get_hex_colour(rgb, brightness=None):
-        h,l,s = colorsys.rgb_to_hls(rgb[0], rgb[1], rgb[2])
-        if brightness is not None:
-            l = brightness
-        r,g,b = [int(x * 255) for x in colorsys.hls_to_rgb(h,l,s)]
-        colour = f"#{r:02X}{g:02X}{b:02X}"
-        return colour
-
-def is_venv():
-    """Return if ZAP is running in a virtual environment.
-
-    Returns
-    -------
-    venv : bool
-        whether or not running in virtual environment
-
-    Note
-    ----
-    Only covers virual environments created with `pipx`, `virtualenv`, `venv`,
-    and `pyvnenv`.
-
-    """
-
-    real_prefix = getattr(sys, "real_prefix", None)
-    base_prefix = getattr(sys, "base_prefix", sys.prefix)
-
-    return (base_prefix or real_prefix) != sys.prefix
-
-def get_settings_folder():
-    """Return ZAP settings folder
-
-    If running in a virtual environment, the ZAP settings folder is
-    `/path/to/environment/.zap/`, otherwise it is `$HOME/.zap`.
-
-    Returns
-    -------
-    settings_folder : str
-        the ZAP settings folder
-
-    """
-
-    home = os.getenv('USERPROFILE')
-    if home is None:
-        home = os.getenv('HOME')
-    if is_venv():
-        home = sys.prefix
-    return os.path.join(home, ".zap")
-
-class AutoScrollbar(ttk.Scrollbar):
-    def set(self, lo, hi):
-        if float(lo) <= 0.0 and float(hi) >= 1.0:
-            self.grid_remove()
-        else:
-            self.grid()
-        ttk.Scrollbar.set(self, lo, hi)
-
-
-class ResizingCanvas(tk.Canvas):
-    def __init__(self,parent, **kwargs):
-        tk.Canvas.__init__(self, parent, **kwargs)
-        self.bind("<Configure>", self.on_resize)
-        self.height = self.winfo_reqheight()
-        self.width = self.winfo_reqwidth()
-
-    def on_resize(self, event):
-        # determine the ratio of old width/height to new width/height
-        wscale = float(event.width) / self.width
-        hscale = float(event.height) / self.height
-        self.width = event.width
-        self.height = event.height
-        # resize the canvas 
-        self.config(width=self.width, height=self.height)
-        # rescale all the objects tagged with the "all" tag
-        self.scale("all", 0, 0, wscale, hscale)
-
-
-import tkinter as tk
-
-class CanvasProgressbar(tk.Canvas):
-    def __init__(self, master, **kwargs):
-        # 1. Extract values before Canvas init
-        self._maximum = float(kwargs.pop('maximum', 100))
-        self._value = float(kwargs.pop('value', 0))
-
-        for key in ('orient', 'mode', 'length', 'period', 'maxphase'):
-            kwargs.pop(key, None)
-
-        kwargs.setdefault('highlightthickness', 0)
-        kwargs.setdefault('bd', 0)
-        kwargs.setdefault('bg', '#222')
-
-        super().__init__(master, **kwargs)
-
-        self.bar = self.create_rectangle(0, 0, 0, 0, fill="#007AFF", outline="")
-        self.bind("<Configure>", lambda e: self._update_view())
-
-    def _update_view(self):
-        w = self.winfo_width()
-        h = self.winfo_height()
-        if w <= 1: return
-        fill_w = (self._value / self._maximum) * w if self._maximum > 0 else 0
-        self.coords(self.bar, 0, 0, fill_w, h)
-
-    @property
-    def value(self): return self._value
-
-    @value.setter
-    def value(self, v):
-        self._value = float(v)
-        self.after_idle(self._update_view)
-
-    def __getitem__(self, key):
-        """Intercepts self.playhead_slider['value']"""
-        if key == 'value':
-            return self._value
-        if key == 'maximum':
-            return self._maximum
-        return super().cget(key)
-
-    def cget(self, key):
-        """Some internal calls use .cget() directly."""
-        return self.__getitem__(key)
-
-    def __setitem__(self, key, val):
-        """Intercepts self.playhead_slider['value'] = x"""
-        if key == 'value':
-            self.value = val
-        elif key == 'maximum':
-            self._maximum = float(val)
-            self._update_view()
-        else:
-            super().configure(**{key: val})
-
-
-class TrackTooltip:
-    def __init__(self, treeview, app_always_on_top):
-        self.treeview = treeview
-        self.app_always_on_top = app_always_on_top
-        self.album = None
-        self.tooltip_window = None
-        self.tooltip_x = self.tooltip_y = 0
-        self.last_idd = None
-        self.waittime = 1000
-        self.id = None
-
-        self.style = ttk.Style()
-        def fixed_map(option):
-            # Fix for setting text colour for Tkinter 8.6.9
-            # From: https://core.tcl.tk/tk/info/509cafafae
-            #
-            # Returns the style map for 'option' with any styles starting with
-            # ('!disabled', '!selected', ...) filtered out.
-
-            # style.map() returns an empty list for missing options, so this
-            # should be future-safe.
-            return [elm for elm in self.style.map('Treeview', query_opt=option)
-                    if elm[:2] != ('!disabled', '!selected')]
-        self.style.map('Treeview', foreground=fixed_map('foreground'),
-                       background=fixed_map('background'))
-
-    def activate(self):
-        self.treeview.bind("<Motion>", self.schedule)
-        self.treeview.bind("<Leave>", self.leave)
-
-    def deactivate(self):
-        self.leave(None)
-        self.treeview.unbind("<Motion>")
-        self.treeview.unbind("<Leave>")
-
-    def schedule(self, event):
-        self.unschedule()
-        idd = self.treeview.identify_row(event.y)
-        if not idd:
-            if self.tooltip_window:
-                self.hide()
-            return
-        if idd == self.last_idd:
-            return
-        if self.tooltip_window:
-            self.hide()
-            return
-        self.id = self.treeview.after(self.waittime, lambda: self.show(event))
-
-    def unschedule(self):
-        id = self.id
-        self.id = None
-        if id:
-            self.treeview.after_cancel(id)
-
-    def show(self, event):
-        normal_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE-2))
-        bold_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE-2),
-                                weight="bold")
-        italic_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE-2),
-                                  slant="italic")
-
-        idd = self.treeview.identify_row(event.y)
-        if idd == "":
-            return
-        self.tooltip_window = tk.Toplevel(self.treeview, highlightthickness=1,
-                                          bg="white")
-        rgb = [x / 65535 for x in self.tooltip_window.winfo_rgb(
-            self.style.lookup('TFrame', 'background'))]
-        highlight_colour = get_hex_colour(rgb, 0.52)
-        self.tooltip_window["highlightbackground"] = highlight_colour
-
-        if platform.system() == "Darwin":
-            self.tooltip_window.tk.call("::tk::unsupported::MacWindowStyle",
-                                         "style", self.tooltip_window._w,
-                                         "help", "noActivates")
-        else:
-            self.tooltip_window.wm_overrideredirect(1)
-        self.tooltip_window.columnconfigure(2, weight=1)
-        track = self.album.tracklist[int(idd)]
-        tags = track["tags"].keys()
-        if track["pictures"] != []:
-            im = Image.open(io.BytesIO(track["pictures"][0].data))
-        else:
-            im = Image.open(self.album.get_slide(0))
-        if int(pil_version.split(".")[0]) < 10:
-            im = im.resize((100, 100), Image.ANTIALIAS)
-        else:
-            im = im.resize((100, 100), Image.LANCZOS)
-        self.photo = ImageTk.PhotoImage(im)
-        im.close()
-        label = tk.Label(self.tooltip_window, image=self.photo,
-                         bg=COLOUR,
-                         borderwidth=0, highlightthickness=0, padx=0, pady=0)
-        label.grid(row=0, column=0, sticky="nw")
-        self.style.configure('TFrame',
-                             background=self.style.lookup('TFrame',
-                                                          'background'))
-        self.frame = ttk.Frame(self.tooltip_window)
-        self.frame.columnconfigure(0, minsize=200)
-        self.frame.grid(row=0, column=1, sticky="nesw")
-        try:
-            title = "; ".join(track["tags"]["title"])
-        except:
-            title = "Unknown Title"
-        label = ttk.Label(self.frame, text=title, justify=tk.LEFT,
-                          font=font(FONTSIZE-2, weight="bold"),
-                          #font=bold_font,
-                          wraplength=self.treeview.winfo_width() - 120)
-        label.grid(row=0, column= 0, padx=2, ipadx=0, ipady=0, sticky="nw")
-        try:
-            artist = "; ".join(track["tags"]["artist"])
-        except:
-            artist = "Unknown Artist"
-        label = ttk.Label(self.frame,
-                          text=artist, justify=tk.LEFT,
-                          font=font(FONTSIZE-2, slant="italic"),
-                          #font=italic_font,
-                          wraplength=self.treeview.winfo_width() - 120)
-        label.grid(row=1, column= 0, padx=2, ipadx=0, ipady=0, sticky="nw")
-        try:
-            try:
-                year = "; ".join([str(dateutil.parser.parse(x).year) \
-                                  for x in track["tags"]["date"]])
-            except KeyError as e:
-                if self.album._fix_date:
-                    year = "; ".join([str(dateutil.parser.parse(x).year) \
-                                      for x in track["tags"]["year"]])
-                else:
-                    raise e
-        except:
-            year = "Unknown Year"
-        label = ttk.Label(self.frame, text=year, justify=tk.LEFT,
-                          font=font(FONTSIZE-2),
-                          #font=normal_font,
-                          wraplength=self.treeview.winfo_width() - 120)
-        label.grid(row=2, column= 0, padx=2, ipadx=0, ipady=0, sticky="nw")
-
-        try:
-            x, y, cx, cy = self.treeview.bbox(idd)
-        except ValueError:
-            return
-        x = x + self.treeview.winfo_rootx() + event.x + 15
-        rowheight = self.style.lookup("Treeview", "rowheight")
-        if rowheight == "":
-            rowheight = 20
-        y = y + cy + self.treeview.winfo_rooty() - rowheight // 2 - 50
-        self.tooltip_window.wm_geometry(f"+{x}+{y}")
-
-        self.tooltip_window.update()
-        try:
-            self.tooltip_window.attributes('-topmost',
-                                           self.app_always_on_top.get())
-            self.tooltip_window.lift()  # work around bug in Tk 8.5.18+
-        except:
-            pass
-
-        self.last_idd = idd
-
-    def leave(self, event):
-        self.unschedule()
-        self.hide()
-
-    def hide(self):
-        if self.tooltip_window:
-            self.tooltip_window.destroy()
-        self.tooltip_window = None
-        self.last_idd = None
-
-
-class DialogueWindow(tk.Toplevel):
-    TITLE = ""
-    TRANSIENT = platform.system() != "Darwin"
-    UNMANAGED = False
-    MODAL = False
-
-    _instances = {}
-
-    def __init__(self, parent):
-        if self.TRANSIENT:
-            tk.Toplevel.__init__(self, parent)
-            self.transient(parent)
-        else:
-            root = parent.nametowidget(".")
-            tk.Toplevel.__init__(self, root)
-            self.transient(root)
-
-        # Allow only one instance
-        cls = self.__class__
-        if cls in DialogueWindow._instances and \
-                DialogueWindow._instances[cls].winfo_exists():
-            DialogueWindow._instances[cls].lift()
-            DialogueWindow._instances[cls].focus_force()
-            self.destroy()
-            return
-        DialogueWindow._instances[cls] = self
-
-        self.parent = parent
-        self.withdraw()
-
-        self.title(self.TITLE)
-        self.resizable(False, False)
-
-        if self.UNMANAGED:
-            self.overrideredirect(True)
-        else:
-            self.protocol("WM_DELETE_WINDOW", self.close)
-        self.bind("<Escape>", self.close)
-
-        self.create_widgets()
-        self.update_idletasks()
-        self.set_geometry()
-
-        self.deiconify()
-        self.lift()
-        self.focus_set()
-
-        if self.MODAL:
-            self.grab_set()
-            if platform.system() == "Windows":
-                parent.wm_attributes("-disabled", True)
-
-        self.on_show()
-
-    def create_widgets(self):
-        pass
-
-    def set_geometry(self):
-        # Center window by default
-        px, py = self.parent.winfo_rootx(), self.parent.winfo_rooty()
-        pw, ph = self.parent.winfo_width(), self.parent.winfo_height()
-        w, h = self.winfo_reqwidth(), self.winfo_reqheight()
-        x = px + (pw // 2) - (w // 2)
-        y = py + (ph // 2) - (h // 2)
-        self.geometry(f"{w}x{h}+{max(0, x)}+{max(0, y)}")
-
-    def on_show(self):
-        pass
-
-    def wait(self):
-        if not self.winfo_exists():
-            return
-        self.wait_window()
-
-    def close(self, event=None):
-        cls = self.__class__
-        if DialogueWindow._instances.get(cls) == self:
-            del DialogueWindow._instances[cls]
-
-        if self.MODAL:
-            if platform.system() == "Windows":
-                self.parent.wm_attributes("-disabled", False)
-            self.grab_release()
-
-        self.destroy()
-
-
-class AboutDialogue(DialogueWindow):
-    TITLE = "About ZAP"
-
-    def create_widgets(self):
-        self.text = tk.Text(self, width=79, height=len(ABOUT_TEXT.split("\n")))
-        self.text.pack(expand=True, fill="both")
-        self.text.insert(tk.END, ABOUT_TEXT)
-        self.text["state"] = "disabled"
-
-
-class SettingsWindow(DialogueWindow):
-    TITLE = "ZAP Settings"
-
-    def create_widgets(self):
-        self.frame = ttk.Frame(self)
-        self.frame.pack()
-
-        # Audio
-        style = ttk.Style()
-        style.configure("TLabelframe.Label", font=font(FONTSIZE,
-                                                       weight="bold"))
-        audio_frame = ttk.LabelFrame(self.frame,
-                                     text="Audio",
-                                     padding=(PADDING/2, PADDING/4*3))
-        audio_frame.pack(fill="x", padx=PADDING, pady=PADDING)
-
-        ttk.Label(audio_frame, text="Audio System:").grid(
-            row=0, column=0, sticky="w",)
-        self.audio_system = ttk.Combobox(
-            audio_frame,
-            values=list(AudioPlayer.available_audio_systems.keys()),
-            state="readonly")
-        self.audio_system.set(self.parent.audio_system)
-        self.audio_system.bind("<<ComboboxSelected>>",
-                               self.update_audio_values)
-        self.audio_system.grid(row=0, column=1, sticky="ew")
-        ttk.Label(audio_frame, text="Channel Mode:").grid(
-            row=1, column=0, sticky="w",)
-        self.channel_mode = ttk.Combobox(
-            audio_frame,
-            values=("Automatic", "Mono", "Dual-Mono", "Stereo"),
-            state="readonly")
-        self.channel_mode.set(self.parent.channel_mode)
-        self.channel_mode.bind("<<ComboboxSelected>>",
-                               self.update_audio_values)
-        self.channel_mode.grid(row=1, column=1, sticky="ew")
-        ttk.Label(audio_frame, text="Sample Format:").grid(
-            row=2, column=0, sticky="w")
-        self.sample_format = ttk.Combobox(
-            audio_frame,
-            values=list(AudioPlayer.available_sample_formats[
-                self.parent.audio_system].keys()),
-            state="readonly")
-        self.sample_format.set(self.parent.sample_format)
-        if self.sample_format.get() not in self.sample_format["values"]:
-            self.sample_format.set("Automatic")
-        self.sample_format.bind("<<ComboboxSelected>>",
-                                self.update_audio_values)
-        self.sample_format.grid(row=2, column=1,sticky="ew")
-
-        ttk.Label(audio_frame, text="Sample Rate:").grid(
-            row=3, column=0, sticky="w")
-        self.sample_rate = ttk.Combobox(
-            audio_frame,
-            values=("Automatic", "8000 Hz", "44100 Hz", "48000 Hz", "88200 Hz",
-                    "96000 Hz"),
-            state="readonly",
-        )
-        self.sample_rate.set(self.parent.sample_rate)
-        self.sample_rate.bind("<<ComboboxSelected>>",
-                              self.update_audio_values)
-        self.sample_rate.grid(row=3, column=1, sticky="ew")
-
-        self.hq_resampling_var = tk.BooleanVar()
-        self.hq_resampling_var.set(self.parent.hq_resampling)
-        self.hq_resampling = ttk.Checkbutton(
-            audio_frame,
-            text="High-Quality Resampling",
-            variable=self.hq_resampling_var,
-            command=self.update_audio_values,
-            onvalue=True,
-            offvalue=False
-        )
-        self.hq_resampling.grid(row=4, column=1, sticky="ew")
-
-        audio_frame.columnconfigure(1, weight=1)
-        for child in audio_frame.winfo_children():
-            child.grid_configure(padx=PADDING/2, pady=PADDING/4)
-
-    def on_show(self):
-        self.update_audio_values()
-
-    def update_audio_values(self, event=None):
-        restart_player = False
-
-        audio_system = self.audio_system.get()
-        sample_format = self.sample_format.get()
-        sample_rate = self.sample_rate.get()
-        channel_mode = self.channel_mode.get()
-        hq_resampling = self.hq_resampling_var.get()
-
-        if audio_system != self.parent.audio_system:
-            sample_formats = \
-                list(AudioPlayer.available_sample_formats[audio_system].keys())
-            self.sample_format["values"] = sample_formats
-            self.parent.apply_setting("AUDIO", "audio_system", audio_system)
-            if sample_format not in sample_formats:
-                sample_format = "Automatic"
-                self.sample_format.set(sample_format)
-                self.parent.apply_setting("AUDIO", "sample_format",
-                                          sample_format)
-            restart_player = True
-
-        if sample_format != self.parent.sample_format:
-            self.parent.apply_setting("AUDIO", "sample_format", sample_format)
-            restart_player = True
-
-        if sample_rate != self.parent.sample_rate:
-            self.parent.apply_setting("AUDIO", "sample_rate", sample_rate)
-            restart_player = True
-
-        if channel_mode != self.parent.channel_mode:
-            self.parent.apply_setting("AUDIO", "channel_mode", channel_mode)
-            restart_player = True
-
-        if hq_resampling != self.parent.hq_resampling:
-            self.parent.apply_setting("AUDIO", "hq_resampling", hq_resampling)
-            restart_player = True
-
-        if restart_player:
-            self.parent.restart_player()
-
-        if sample_rate == "Automatic":
-            self.hq_resampling.state(["disabled"])
-        else:
-            self.hq_resampling.state(["!disabled"])
-
-
-class CreateAlbumDialogue(DialogueWindow):
-    TITLE = "Create Zipped Album"
-
-    def create_widgets(self):
-        self.directory = tk.StringVar()
-        self.directory.trace_add("write", self.change_create_state)
-        self.filename = tk.StringVar()
-        self.filename.trace_add("write", self.change_create_state)
-        self.png = tk.BooleanVar(value=False)
-        self.png.trace_add("write", self.change_png)
-        self.open_album = tk.BooleanVar(value=True)
-
-        frame = ttk.Frame(self)
-        frame.pack()
-
-        style = ttk.Style()
-        style.configure("TLabelframe.Label", font=font(FONTSIZE,
-                                                       weight="bold"))
-
-        input_frame = ttk.LabelFrame(frame, text="Input",
-                                     padding=(PADDING/2, PADDING/4*3))
-        input_frame.pack(fill="x", padx=PADDING, pady=(PADDING, 0))
-        dir_label = ttk.Label(input_frame, text="Directory:").grid(
-            row=0, column=0, sticky="w")
-        self.dir_entry = ttk.Entry(input_frame, textvariable=self.directory,
-                                   width=50)
-        self.dir_entry.grid(row=1, column=0, sticky="ew")
-        self.dir_button = ttk.Button(input_frame, text="Browse...",
-                                     command=self.browse_in)
-        self.dir_button.grid(row=1, column=1, sticky="e")
-        input_frame.columnconfigure(1, weight=1)
-        for child in input_frame.winfo_children():
-            child.grid_configure(padx=PADDING/2, pady=PADDING/4)
-
-        output_frame = ttk.LabelFrame(frame, text="Output",
-                                     padding=(PADDING/2, PADDING/4*3))
-        output_frame.pack(fill="x", padx=PADDING, pady=(PADDING, 0))
-        filename_label = ttk.Label(output_frame, text="Filename:").grid(
-            row=0, column=0, sticky="w")
-        filename_entry = ttk.Entry(output_frame, textvariable=self.filename,
-                                   width=50)
-        filename_entry.grid(row=1, column=0, sticky="ew")
-        ttk.Button(output_frame, text="Browse...",
-                   command=self.browse_out).grid(row=1, column=1, sticky="e")
-        ttk.Checkbutton(output_frame,
-                        text='Wrap in album sleeve (.zlbm.png)',
-                        variable=self.png).grid(row=2, column=0, sticky="w",
-                                                columnspan=3)
-        output_frame.columnconfigure(1, weight=1)
-        for child in output_frame.winfo_children():
-            child.grid_configure(padx=PADDING/2, pady=PADDING/4)
-
-        button_frame = ttk.Frame(frame, padding=(PADDING/2, PADDING/4*3))
-        button_frame.pack(fill="x")
-        ttk.Checkbutton(button_frame,
-                        text="Open album after creation",
-                        variable=self.open_album).grid(
-                            row=0, column=0, sticky="w")
-        self.create_button = ttk.Button(button_frame, text="Create",
-                                        command=self.create,
-                                        default="active",
-                                        state="disabled")
-        cancel_button = ttk.Button(button_frame, text="Cancel",
-                                   command=self.close)
-        # Cross-platform button ordering
-        if platform.system() in ("Darwin", "Linux"): # Cancel | Create
-            cancel_button.grid(row=0, column=1, sticky="e")
-            self.create_button.grid(row=0, column=2, sticky="e")
-        else: # Create | Cancel
-            self.create_button.grid(row=0, column=1, sticky="e")
-            cancel_button.grid(row=0, column=2, sticky="e")
-        button_frame.columnconfigure(0, weight=1)
-        for child in button_frame.winfo_children():
-            child.grid_configure(padx=PADDING/2, pady=PADDING/4)
-
-    def on_show(self):
-        self.dir_entry.focus_set()
-        self.bind('<Return>', (lambda e, b=self.dir_button: b.invoke()))
-
-    def browse_in(self):
-        try:
-            initialdir = os.path.split(self.directory.get())[0]
-            assert os.path.isdir(initialdir)
-        except AssertionError:
-            if self.parent.loaded_album is not None:
-                initialdir = os.path.split(self.praent.loaded_album.filename)[0]
-            else:
-                initialdir = self.parent.config.get("GENERAL", "directory",
-                                                    fallback=os.getcwd())
-        self.update_idletasks()
-        self.update()
-        self.lift()
-        self.focus_force()
-        directory = filedialog.askdirectory(initialdir=initialdir,
-                                            mustexist=True,
-                                            parent=self)
-        if directory:
-            self.directory.set(directory)
-            if not self.filename.get():
-                ext = ".zlbm"
-                if self.png.get():
-                    ext += ".png"
-                self.filename.set(directory + ext)
-
-    def browse_out(self):
-        try:
-            initialdir = os.path.split(self.filename.get())[0]
-            assert os.path.isdir(initialdir)
-        except AssertionError:
-            if self.parent.loaded_album is not None:
-                initialdir = os.path.split(self.parent.loaded_album.filename)[0]
-            else:
-                initialdir = self.parent.config.get("GENERAL", "directory",
-                                                    fallback=os.getcwd())
-        filename = filedialog.asksaveasfilename(initialdir=initialdir,
-                                                defaultextension=".zlbm",
-                                                parent=self)
-        if filename:
-            if self.png.get():
-                filename += ".png"
-            self.filename.set(filename)
-
-    def change_png(self, *args):
-        filename = self.filename.get()
-        if self.png.get():
-            if filename:
-                    self.filename.set(
-                        os.path.splitext(filename)[0] + ".zlbm.png")
-        else:
-            if filename:
-                if filename.endswith(".zlbm.png"):
-                    self.filename.set(filename[:-4])
-                else:
-                    self.filename.set(os.path.splitext(filename)[0] + ".zlbm")
-
-    def create(self):
-        self.close()
-        self.parent.make_album(self.directory.get(),
-                               self.filename.get(),
-                               self.png.get(),
-                               self.open_album.get())
-
-    def change_create_state(self, *args):
-        if self.directory.get() and self.filename.get():
-            self.create_button["state"] = "normal"
-            self.bind('<Return>', (lambda e, b=self.create_button: b.invoke()))
-        else:
-            self.create_button["state"] = "disabled"
-
 
 class MainApplication(tk.Toplevel):
-    def __init__(self, parent, *args, **kwargs):
+    def __init__(self, parent, padding=PADDING, *args, **kwargs):
         tk.Toplevel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
+        self.padding = padding
         self.withdraw()
         self.style = ttk.Style()
         #self.style.theme_use("default")
-        self.config = configparser.ConfigParser()
+        self.config_parser = configparser.ConfigParser()
         self.load_config()
-        #geometry = self.config.get("GENERAL", "window_geometry",
-        #                           fallback=f"{WIDTH}x{HEIGHT}+0+0")
+        #geometry = self.config_parser.get("GENERAL", "window_geometry",
+        #                                 fallback=f"{WIDTH}x{HEIGHT}+0+0")
         #size, pos_x, pos_y = geometry.split("+")
         #width, height = [int(x) for x in size.split("x")]
         #self.size = [width, height]
         #self._last_geometry = geometry
         self.size = [WIDTH, HEIGHT]
         self._last_geometry = "{WIDTH}x{HEIGHT}+0+0"
+        self.default_fonts = FontBase(self, family=FONTNAME)
+        self.padding = PADDING
 
         self.repeat_album = tk.BooleanVar()
-        self.repeat_album.set(self.config.getboolean("PLAYBACK", "repeat",
-                                                    fallback=False))
+        self.repeat_album.set(self.config_parser.getboolean(
+            "PLAYBACK", "repeat", fallback=False))
         self.show_menubar = tk.BooleanVar()
-        self.show_menubar.set(self.config.getboolean("VIEW", "show_menubar",
-                                                     fallback=True))
+        self.show_menubar.set(self.config_parser.getboolean(
+            "VIEW", "show_menubar", fallback=True))
         self.always_on_top = tk.BooleanVar()
-        self.always_on_top.set(self.config.getboolean("VIEW", "always_on_top",
-                                                      fallback=False))
+        self.always_on_top.set(self.config_parser.getboolean(
+            "VIEW", "always_on_top", fallback=False))
         self.fullscreen = tk.BooleanVar()
-        self.fullscreen.set(self.config.getboolean("VIEW", "fullscreen",
-                                                   fallback=False))
-
-        self.audio_system = self.config.get("SETTINGS.AUDIO",
-                                            "audio_system",
-                                            fallback="")
-        self.channel_mode = self.config.get("SETTINGS.AUDIO",
-                                            "channel_mode",
-                                            fallback="Automatic")
-        self.sample_format = self.config.get("SETTINGS.AUDIO",
-                                             "sample_format",
-                                             fallback="Automatic")
-        self.sample_rate = self.config.get("SETTINGS.AUDIO",
-                                           "sample_rate",
-                                           fallback="Automatic")
-        self.hq_resampling = bool(self.config.getboolean("SETTINGS.AUDIO",
-                                                         "hq_resampling",
+        self.fullscreen.set(self.config_parser.getboolean("VIEW", "fullscreen",
                                                          fallback=False))
 
+        self.audio_system = self.config_parser.get("SETTINGS.AUDIO",
+                                                  "audio_system",
+                                                  fallback="")
+        self.channel_mode = self.config_parser.get("SETTINGS.AUDIO",
+                                                  "channel_mode",
+                                                  fallback="Automatic")
+        self.sample_format = self.config_parser.get("SETTINGS.AUDIO",
+                                                   "sample_format",
+                                                   fallback="Automatic")
+        self.sample_rate = self.config_parser.get("SETTINGS.AUDIO",
+                                                 "sample_rate",
+                                                 fallback="Automatic")
+        self.hq_resampling = bool(self.config_parser.getboolean("SETTINGS.AUDIO",
+                                                               "hq_resampling",
+                                                               fallback=False))
+
         self.loaded_album = None
+        self.set_title()
         self.create_menu()
         self.create_widgets()
         self.remove_arrows()
@@ -983,11 +218,8 @@ class MainApplication(tk.Toplevel):
             exact = True
         else:
             exact = False
-        if self.loaded_album is not None:
-            initialdir = os.path.split(self.loaded_album.filename)[0]
-        else:
-            initialdir = self.config.get("GENERAL", "directory",
-                                         fallback=os.getcwd())
+        initialdir = self.config_parser.get("GENERAL", "last_open_directory",
+                                            fallback=os.path.expanduser("~"))
 
         allowed_extensions = ".zip .zlbm .png"
         filetypes = [("Zipped Album files", allowed_extensions),
@@ -995,42 +227,44 @@ class MainApplication(tk.Toplevel):
         was_always_on_top = self.always_on_top.get()
         if was_always_on_top:
             self.toggle_always_on_top()
+        parent = None if platform.system() == "Darwin" else self
         filename = filedialog.askopenfilename(initialdir=initialdir,
                                               filetypes=filetypes,
-                                              parent=self)
+                                              parent=parent)
         if was_always_on_top:
             self.toggle_always_on_top()
 
         if filename:
-            if not self.config.has_section("GENERAL"):
-                self.config.add_section("GENERAL")
-            self.config.set("GENERAL", "directory", os.path.split(filename)[0])
+            if not self.config_parser.has_section("GENERAL"):
+                self.config_parser.add_section("GENERAL")
+            self.config_parser.set("GENERAL", "last_open_directory",
+                                  os.path.split(filename)[0])
             self.clear()
             self.load_album(filename, exact=exact)
             self.focus_force()
 
     def load_config(self):
-        config_file = os.path.join(get_settings_folder(), "config")
+        config_file = os.path.join(get_config_folder(), "config")
         try:
             if os.path.isfile(config_file):
-                self.config.read(config_file)
+                self.config_parser.read(config_file)
         except:
             pass
 
     def write_config(self):
-        settings_folder = get_settings_folder()
+        settings_folder = get_config_folder()
         config_file = os.path.join(settings_folder, "config")
         try:
             if not os.path.isdir(settings_folder):
-                os.makedirs(get_settings_folder())
+                os.makedirs(get_config_folder())
             with open(config_file, 'w') as f:
-                self.config.write(f)
+                self.config_parser.write(f)
         except:
             pass
 
     def create_menu(self):
-        self.menu = tk.Menu(self.parent, tearoff=False)  # right-click menu
-        self.menubar = tk.Menu(self.parent, tearoff=False)  # menubar
+        self.menu = tk.Menu(self, tearoff=False)  # right-click menu
+        self.menubar = tk.Menu(self, tearoff=False)  # menubar
 
         if platform.system() == "Darwin":
             self.master.createcommand('tkAboutDialog',
@@ -1144,7 +378,7 @@ class MainApplication(tk.Toplevel):
             command=lambda: self.set_view_preset("custom4"),
             accelerator=f"{modifier}-9")
         for x in range(1,5):
-            if not self.config.has_option("VIEW", f"preset_custom{x}"):
+            if not self.config_parser.has_option("VIEW", f"preset_custom{x}"):
                 self.view_presets_menu.entryconfig(f"Custom {x}",
                                                    state="disabled")
         self.view_presets_menu.add_separator()
@@ -1346,6 +580,8 @@ class MainApplication(tk.Toplevel):
                               command=self.quit,
                               accelerator=f"{modifier}-Q")
 
+        self.config(menu=self.menubar)
+
     def show_context_menu(self, event):
         try:
             self.menu.tk_popup(event.x_root, event.y_root)
@@ -1377,7 +613,7 @@ class MainApplication(tk.Toplevel):
                     pass
             else:
                 self.parent.createcommand('tk::mac::ShowPreferences',
-                                          SettingsWindow)
+                                          lambda: SettingsWindow(self))
         else:
             try:
                 self.menubar.entryconfig("File", state="normal")
@@ -1473,21 +709,23 @@ class MainApplication(tk.Toplevel):
         frame_up.columnconfigure(0, weight=1)
         frame_up.grid_configure(padx=PADDING, pady=PADDING)
         self.track = ttk.Label(frame_up, text="", anchor="center",
-                               font=font(FONTSIZE+8, weight="bold"),
+                               font=self.default_fonts.spec(+8, weight="bold"),
                                justify="center",
                                wraplength=WIDTH-HEIGHT-2*PADDING)
         self.track.grid(column=0, row=0, sticky="ew")
         self.artist = ttk.Label(frame_up, text="No Album", anchor="center",
-                                font=font(FONTSIZE+4, slant="italic"),
+                                font=self.default_fonts.spec(+4,
+                                                             slant="italic"),
                                 justify="center",
                                 wraplength=WIDTH-HEIGHT-2*PADDING)
         self.artist.grid(column=0, row=1, sticky="ew")
         self.info = ttk.Label(frame_up, text="", anchor="center",
-                              font=font(FONTSIZE-2))
+                              font=self.default_fonts.spec(-2))
         self.info.grid(column=0, row=3, sticky="ew", pady=(PADDING/2, 0))
 
-        self.style.configure("Treeview.Heading", font=font(FONTSIZE))
-        self.style.configure("Treeview", font=font(FONTSIZE))
+        #self.style.configure("Treeview.Heading",
+        #                     font=self.default_fonts.spec())
+        #self.style.configure("Treeview", self.default_fonts.spec())
         if SCALING > 1:
             self.style.configure("Treeview",
                                  rowheight=int(13 * (SCALING * 1.6)))
@@ -1500,8 +738,9 @@ class MainApplication(tk.Toplevel):
         self.style.configure('Treeview', relief="flat",
                              borderwidth=1 * SCALING)
         self.tree = ttk.Treeview(tree_frame, show="tree", selectmode="browse")
-        self.tree.tag_configure('normal', font=font(FONTSIZE))
-        self.tree.tag_configure('bold', font=font(FONTSIZE, weight="bold"))
+        #self.tree.tag_configure('normal', font=font(FONTSIZE))
+        self.tree.tag_configure('bold',
+                                font=self.default_fonts.spec(weight="bold"))
         #rgb = [x / 65535 for x in self.winfo_rgb(self.style.lookup(
         #    'TFrame', 'background'))]
         rgb = [x / 65535 for x in self.winfo_rgb(
@@ -1528,7 +767,9 @@ class MainApplication(tk.Toplevel):
         self.tree_vscrollbar.grid(row=0, column=1, sticky='nsew')
         self.tree.configure(yscrollcommand=self.tree_vscrollbar.set)
 
-        self.track_tooltip = TrackTooltip(self.tree, self.always_on_top)
+        self.track_tooltip = TrackTooltip(self.tree, COLOUR,
+                                          self.default_fonts,
+                                          self.always_on_top)
 
         self.frame_bottom = frame_bottom = ttk.Frame(frame_right)
         frame_bottom.grid(column=0, row=2, sticky="nesw")
@@ -1554,11 +795,13 @@ class MainApplication(tk.Toplevel):
         #self.playhead_slider.configure(bg=shaded_colour)
         self.playpause_label = ttk.Label(frame_bottom, text="Paused",
                                          anchor="center",
-                                         font=font(FONTSIZE-4, weight="bold"),
+                                         font=self.default_fonts.spec(
+                                             -4, weight="bold"),
                                          state="disabled")
         self.playpause_label.grid(column=0, row=1, sticky="ns")
         self.playhead_label = ttk.Label(frame_bottom, anchor="center",
-                                        font=font(FONTSIZE, weight="bold"))
+                                        font=self.default_fonts.spec(
+                                            weight="bold"))
         self.playhead_label.grid(column=1, row=1, sticky="ns")
         self.playhead = None
 
@@ -1571,17 +814,20 @@ class MainApplication(tk.Toplevel):
                                              maximum=100, value=100)
         self.volume_slider.place(relheight=1.0, relwidth=1.0)
         self.volume_label = ttk.Label(frame_bottom, anchor="center",
-                                      font=font(FONTSIZE-4, weight="bold"))
+                                      font=self.default_fonts.spec(
+                                          -4, weight="bold"))
         self.volume = 100
         self.volume_label.grid(column=2, row=1, sticky="ns")
 
         self.trackinfo = ttk.Label(frame_bottom, text="", anchor="center",
-                                   font=font(FONTSIZE-2))
+                                   font=self.default_fonts.spec(-2))
         self.trackinfo.grid(column=0, row=2, columnspan=3, sticky="ew",
                             pady=(PADDING/2, 0))
 
 
         for child in self.winfo_children():
+            if isinstance(child, tk.Menu):
+                continue
             child.grid_configure(padx=0, pady=0)
 
     def create_bindings(self):
@@ -1631,8 +877,10 @@ class MainApplication(tk.Toplevel):
             self.bind("<F1>", lambda e: AboutDialogue(self))
         self.bind(f"<{modifier}-q>", lambda e: self.quit())
 
+        self.tree.bind("<Down>", lambda e: None)
         self.bind("<Down>", lambda e: self.increment_track(1))
         self.bind("j", lambda e: self.increment_track(1))
+        self.tree.bind("<Up>", lambda e: None)
         self.bind("<Up>", lambda e: self.increment_track(-1))
         self.bind("k", lambda e: self.increment_track(-1))
 
@@ -1932,7 +1180,6 @@ class MainApplication(tk.Toplevel):
                 while True:
                     msg = self.msg_queue.get_nowait()
                     if msg["type"] == "progress":
-                        pass
                         #self._overlay.progressbar["value"] = msg["percents"]
                         self.playhead_slider["value"] = msg["percents"]
                         #self._overlay.text1["text"] = msg["message"]
@@ -1947,8 +1194,8 @@ class MainApplication(tk.Toplevel):
                         return
             except queue.Empty:
                 pass
-            if self.winfo_exists():
-                self.after(10, poll_queue)
+            #if self.winfo_exists():
+            #    self.after(10, poll_queue)
 
         def run_download():
             def _progress(count, total, message=''):
@@ -2032,7 +1279,7 @@ class MainApplication(tk.Toplevel):
         def start_process():
             self.change_menu_state("disabled")
             self.resizable(False, False)
-            self.artist["text"] = "FFmpeg Download"
+            self.artist["text"] = "Downloading FFmpeg..."
 
             self.frame_bottom.grid_rowconfigure(
                 0, minsize=self.playpause_button.winfo_height())
@@ -2044,8 +1291,12 @@ class MainApplication(tk.Toplevel):
             #self.update()
             #show_overlay()
             self.msg_queue = queue.Queue()
-            threading.Thread(target=run_download, daemon=True).start()
-            poll_queue()
+            download = threading.Thread(target=run_download, daemon=True)
+            download.start()
+            while download.is_alive() or not self.msg_queue.empty():
+                poll_queue()
+                self.update()
+                time.sleep(0.01)
 
         #def start():
         #    def _progress(count, total, message=''):
@@ -2258,9 +1509,11 @@ class MainApplication(tk.Toplevel):
         playtime = self.loaded_album.playtime
         self.info["text"] = f"{year} | {n_tracks} tracks | {playtime}"
 
-        normal_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE))
-        bold_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE),
-                                weight="bold")
+        #normal_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE))
+        normal_font = self.default_fonts.font()
+        #bold_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE),
+        #                        weight="bold")
+        bold_font = self.default_fonts.font(weight="bold")
         self.title_widths = [normal_font.measure(s["display"][1]) for s in \
                              self.loaded_album.tracklist]
         self.title_widths_bold = [bold_font.measure(s["display"][1]) for s in \
@@ -2309,7 +1562,8 @@ class MainApplication(tk.Toplevel):
         self.set_title()
         self.create_menu()
 
-    def make_album(self, directory, filename, png, load, exact=False):
+    def make_album(self, directory, filename=None, png=False, load=True,
+                   exact=False):
         # Clear current state
         self.title("ZAP")
         self.hide_image()
@@ -2364,9 +1618,11 @@ class MainApplication(tk.Toplevel):
                     self.tree.column('0')['width'] - \
                     self.tree.column('2')['width'] - CELLPADDING
         tracks = [x["display"] for x in self.loaded_album.tracklist]
-        normal_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE))
-        bold_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE),
-                                weight="bold")
+        #normal_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE))
+        normal_font = self.default_fonts.font()
+        #bold_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE),
+        #                        weight="bold")
+        bold_font = self.default_fonts.font(weight="bold")
         for c, track in enumerate(tracks):
             track = track[:]
             text_width = self.title_widths[c]
@@ -2598,18 +1854,18 @@ class MainApplication(tk.Toplevel):
                 width = max_width
                 height = max_width - (WIDTH - HEIGHT)
         elif "custom" in preset:
-            if not self.config.has_option("VIEW", f"preset_{preset}"):
+            if not self.config_parser.has_option("VIEW", f"preset_{preset}"):
                 return
-            size = self.config.get("VIEW", f"preset_{preset}")
+            size = self.config_parser.get("VIEW", f"preset_{preset}")
             width, height = size.split("x")
         self.geometry(f"{width}x{height}")
 
     def store_custom_view_preset(self, number, event=None):
         #size = self.parent.geometry().split("+")[0]
         if not self.fullscreen.get():
-            if not self.config.has_section("VIEW"):
-                self.config.add_section("VIEW")
-            self.config.set("VIEW", f"preset_custom{number}",
+            if not self.config_parser.has_section("VIEW"):
+                self.config_parser.add_section("VIEW")
+            self.config_parser.set("VIEW", f"preset_custom{number}",
                             f"{self.size[0]}x{self.size[1]}")
             self.create_menu()
 
@@ -2632,9 +1888,9 @@ class MainApplication(tk.Toplevel):
             self.parent["menu"] = ""
             show_menubar = False
         self.update()
-        if not self.config.has_section("VIEW"):
-            self.config.add_section("VIEW")
-        self.config.set("VIEW", "show_menubar", str(int(show_menubar)))
+        if not self.config_parser.has_section("VIEW"):
+            self.config_parser.add_section("VIEW")
+        self.config_parser.set("VIEW", "show_menubar", str(int(show_menubar)))
 
    #         self.show_menu_binding = self.parent.bind("<Alt_L>",
    #                                                   self.toggle_temp_menubar)
@@ -2661,10 +1917,10 @@ class MainApplication(tk.Toplevel):
 
     def toggle_always_on_top(self, event=None):
         self.attributes('-topmost', self.always_on_top.get())
-        if not self.config.has_section("VIEW"):
-            self.config.add_section("VIEW")
-        self.config.set("VIEW", "always_on_top",
-                        str(int(self.always_on_top.get())))
+        if not self.config_parser.has_section("VIEW"):
+            self.config_parser.add_section("VIEW")
+        self.config_parser.set("VIEW", "always_on_top",
+                              str(int(self.always_on_top.get())))
 
     def toggle_fullscreen(self, event=None):
         if event is not None:  # if triggered by keybinding, update checkbox
@@ -2709,15 +1965,15 @@ class MainApplication(tk.Toplevel):
             current_image = self.current_image
         self.show_image(current_image)
         self.truncate_titles()
-        if not self.config.has_section("VIEW"):
-            self.config.add_section("VIEW")
-        self.config.set("VIEW", "fullscreen", str(int(fullscreen)))
+        if not self.config_parser.has_section("VIEW"):
+            self.config_parser.add_section("VIEW")
+        self.config_parser.set("VIEW", "fullscreen", str(int(fullscreen)))
 
     def toggle_repeat_album(self, event=None):
-        if not self.config.has_section("PLAYBACK"):
-            self.config.add_section("PLAYBACK")
-        self.config.set("PLAYBACK", "repeat",
-                        str(int(self.repeat_album.get())))
+        if not self.config_parser.has_section("PLAYBACK"):
+            self.config_parser.add_section("PLAYBACK")
+        self.config_parser.set("PLAYBACK", "repeat",
+                              str(int(self.repeat_album.get())))
 
     def apply_setting(self, section, key, value):
         try:
@@ -2727,9 +1983,9 @@ class MainApplication(tk.Toplevel):
         section_name = f"SETTINGS.{section.upper()}"
         if isinstance(value, bool):
             value = str(int(value))
-        if not self.config.has_section(section_name):
-            self.config.add_section(section_name)
-        self.config.set(section_name, key, value)
+        if not self.config_parser.has_section(section_name):
+            self.config_parser.add_section(section_name)
+        self.config_parser.set(section_name, key, value)
 
     def restart_player(self):
         if self.loaded_album:
@@ -2772,10 +2028,10 @@ class MainApplication(tk.Toplevel):
             if was_playing:
                 self.play()
                 self.player.seek(pause_time + (time.perf_counter() - start))
-        if not self.config.has_section("SETTINGS.AUDIO"):
-            self.config.add_section("SETTINGS.AUDIO")
-        self.config.set("SETTINGS.AUDIO", "audio_system",
-                        self.audio_system.get())
+        if not self.config_parser.has_section("SETTINGS.AUDIO"):
+            self.config_parser.add_section("SETTINGS.AUDIO")
+        self.config_parser.set("SETTINGS.AUDIO", "audio_system",
+                              self.audio_system.get())
 
     def set_sample_format(self, event=None):
         if self.loaded_album:
@@ -2791,10 +2047,10 @@ class MainApplication(tk.Toplevel):
             if was_playing:
                 self.play()
                 self.player.seek(pause_time + (time.perf_counter() - start))
-        if not self.config.has_section("SETTINGS.AUDIO"):
-            self.config.add_section("SETTINGS.AUDIO")
-        self.config.set("SETTINGS.AUDIO", "sample_format",
-                        self.sample_format.get())
+        if not self.config_parser.has_section("SETTINGS.AUDIO"):
+            self.config_parser.add_section("SETTINGS.AUDIO")
+        self.config_parser.set("SETTINGS.AUDIO", "sample_format",
+                              self.sample_format.get())
 
     def set_sample_rate(self, event=None):
         if self.loaded_album:
@@ -2810,10 +2066,10 @@ class MainApplication(tk.Toplevel):
             if was_playing:
                 self.play()
                 self.player.seek(pause_time + (time.perf_counter() - start))
-        if not self.config.has_section("SETTINGS.AUDIO"):
-            self.config.add_section("SETTINGS.AUDIO")
-        self.config.set("SETTINGS.AUDIO", "sample_rate",
-                        self.sample_rate.get())
+        if not self.config_parser.has_section("SETTINGS.AUDIO"):
+            self.config_parser.add_section("SETTINGS.AUDIO")
+        self.config_parser.set("SETTINGS.AUDIO", "sample_rate",
+                              self.sample_rate.get())
 
 
     def set_title(self):
@@ -2835,16 +2091,17 @@ class MainApplication(tk.Toplevel):
         self.title(title)
 
     def quit(self):
-        #if not self.config.has_section("GENERAL"):
-        #    self.config.add_section("GENERAL")
+        #if not self.config_parser.has_section("GENERAL"):
+        #    self.config_parser.add_section("GENERAL")
         #if self.fullscreen.get():
         #    geometry = self._last_geometry
         #else:
         #    geometry = self.parent.geometry()
-        #self.config.set("GENERAL", "window_geometry", geometry)
+        #self.config_parser.set("GENERAL", "window_geometry", geometry)
         self.write_config()
         self.player = None
         self.parent.destroy()
+
 
 def run():
 
@@ -2872,17 +2129,17 @@ def run():
         root = tkinterdnd2.TkinterDnD.Tk()
     else:
         root = tk.Tk()
-    root.geometry(f"{WIDTH}x{HEIGHT}+0+0")
+
+    #root.geometry(f"{WIDTH}x{HEIGHT}+0+0")
     if tk.TclVersion >= 9:
-        global _TK_SCALING
-        _TK_SCALING = float(root.tk.call('tk', 'scaling'))
         root.tk.call('tk', 'scaling', SCALING)
     else:
         dpi = root.winfo_fpixels('1i')
         root.tk.call('tk', 'scaling', SCALING * (dpi / 72.0))
+
     root.withdraw()
+
     app = MainApplication(root)#, padding="0 0 0 0")
-    app.set_title()
     if platform.system() == "Windows":
         root.iconbitmap(os.path.abspath(os.path.join(
             os.path.split(__file__)[0], "zipped_album_icon.ico")))
@@ -2908,10 +2165,8 @@ def run():
     app.create_menu()
     app.update()
 
-    from .binaries import has_ffmpeg
     if not has_ffmpeg():
         app.handle_ffmpeg_download()
-
     try:
         global AudioPlayer, GaplessAudioPlayer
         from .player import AudioPlayer, GaplessAudioPlayer
@@ -2942,20 +2197,18 @@ def run():
                 app.make_album(os.path.abspath(sys.argv[-1]), exact=exact)
             else:
                 os.chdir(os.path.abspath(sys.argv[-1]))
-        if os.path.splitext(sys.argv[-1])[-1] in (".zlbm", ".zip"):
+        if os.path.splitext(sys.argv[-1])[-1] in (".zlbm", ".zip", "png"):
             if os.path.isfile(sys.argv[-1]):
                 app.load_album(os.path.abspath(sys.argv[-1]), exact=exact)
             else:
                 messagebox.showerror(
                 title="Error opening album",
                 message=f'The file "{sys.argv[-1]}" does not exist!',
-                parent=self.master)
+                parent=app)
     except:
         pass
 
     app.protocol('WM_DELETE_WINDOW', app.quit)
-    if platform.system() == "Darwin":
-        root.createcommand("tk::mac::Quit" , app.quit)
 
     app.create_bindings()
     app.focus_force()
