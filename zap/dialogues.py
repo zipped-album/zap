@@ -274,12 +274,13 @@ class SettingsWindow(DialogueWindow):
 
         if messagebox.askyesno("Reset Configuration", msg, icon='warning',
                                parent=self):
+            config_folder = get_config_folder()
             try:
-                shutil.rmtree(get_config_folder())
-                os.makedirs(get_config_folder())
+                shutil.rmtree(config_folder)
+                os.makedirs(config_folder)
             except Exception as e:
-                messagebox.showerror("Error",
-                                     f"Could not delete data: {e}")
+                messagebox.showerror(
+                    "Error", f'Could not delete data in "{config_folder}"!')
             self.parent.parent.destroy()
 
 class CreateAlbumDialogue(DialogueWindow):
