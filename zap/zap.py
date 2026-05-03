@@ -131,9 +131,9 @@ class MainApplication(tk.Toplevel):
         self.sample_rate = self.config_parser.get("SETTINGS.AUDIO",
                                                  "sample_rate",
                                                  fallback="Automatic")
-        self.hq_resampling = bool(self.config_parser.getboolean("SETTINGS.AUDIO",
-                                                               "hq_resampling",
-                                                               fallback=False))
+        self.hq_resampling = self.config_parser.getboolean("SETTINGS.AUDIO",
+                                                           "hq_resampling",
+                                                           fallback=False)
 
         self.loaded_album = None
         self.set_title()
@@ -158,6 +158,52 @@ class MainApplication(tk.Toplevel):
         self.toggle_always_on_top()
         if self.fullscreen.get():
             self.toggle_fullscreen()
+
+        if platform.system() == "Windows":
+            self.parent.iconbitmap(os.path.abspath(os.path.join(
+                os.path.split(__file__)[0], "zipped_album_icon.ico")))
+        else:
+            self.parent.tk.call('wm', 'iconphoto', self._w,
+                         tk.PhotoImage(file=os.path.abspath(os.path.join(
+                    os.path.split(__file__)[0], "zipped_album_icon.png"))))
+        self.geometry(f"{WIDTH}x{HEIGHT}+0+0")
+        self.update()
+        self.deiconify()
+        self.minsize(WIDTH-HEIGHT, 0)
+        self.lift()
+
+        #size, pos_x, pos_y = self._last_geometry.split("+")
+        #width, height = [int(x) for x in size.split("x")]
+        self.geometry(f"{WIDTH-1}x{HEIGHT-1}+0+0")  # hack for removing empty scrollbar
+        #self.parent.geometry(f"{width-1}x{height-1}{pos_x}{pos_y}")  # hack for removing empty scrollbar
+        self.update_idletasks()
+        self.geometry(f"{WIDTH}x{HEIGHT}")
+        #self.parent.geometryself._last_geometry)
+
+        self.create_menu()
+        self.update()
+
+        self.protocol('WM_DELETE_WINDOW', self.quit)
+        self.create_bindings()
+        self.focus_force()
+
+        if not has_ffmpeg():
+            self.handle_ffmpeg_download()
+        try:
+            global AudioPlayer, GaplessAudioPlayer
+            from .player import AudioPlayer, GaplessAudioPlayer
+            if self.audio_system == "":
+                self.audio_system = \
+                    list(AudioPlayer.available_audio_systems.keys())[0]
+
+        except RuntimeError as e:
+            if "ffmpeg" in repr(e).lower():
+                messagebox.showerror(title="FFmpeg error",
+                                     message="There was an error loading the "
+                                             "required FFmpeg libraries!\n\n"
+                                             "The application will close now.",
+                                     parent=self)
+                sys.exit()
 
         def update_player():
             try:
@@ -2138,50 +2184,7 @@ def run():
         root.tk.call('tk', 'scaling', SCALING * (dpi / 72.0))
 
     root.withdraw()
-
-    app = MainApplication(root)#, padding="0 0 0 0")
-    if platform.system() == "Windows":
-        root.iconbitmap(os.path.abspath(os.path.join(
-            os.path.split(__file__)[0], "zipped_album_icon.ico")))
-    else:
-        root.tk.call('wm', 'iconphoto', app._w,
-                     tk.PhotoImage(file=os.path.abspath(os.path.join(
-                os.path.split(__file__)[0], "zipped_album_icon.png"))))
-    #app.pack(side="top", fill="both", expand=True)
-    app.geometry(f"{WIDTH}x{HEIGHT}+0+0")
-    app.update()
-    app.deiconify()
-    app.minsize(WIDTH-HEIGHT, 0)
-    app.lift()
-
-    #size, pos_x, pos_y = app._last_geometry.split("+")
-    #width, height = [int(x) for x in size.split("x")]
-    app.geometry(f"{WIDTH-1}x{HEIGHT-1}+0+0")  # hack for removing empty scrollbar
-    #root.geometry(f"{width-1}x{height-1}{pos_x}{pos_y}")  # hack for removing empty scrollbar
-    app.update_idletasks()
-    app.geometry(f"{WIDTH}x{HEIGHT}")
-    #root.geometry(app._last_geometry)
-
-    app.create_menu()
-    app.update()
-
-    if not has_ffmpeg():
-        app.handle_ffmpeg_download()
-    try:
-        global AudioPlayer, GaplessAudioPlayer
-        from .player import AudioPlayer, GaplessAudioPlayer
-        if app.audio_system == "":
-            app.audio_system = \
-                list(AudioPlayer.available_audio_systems.keys())[0]
-
-    except RuntimeError as e:
-        if "ffmpeg" in repr(e).lower():
-            messagebox.showerror(title="FFmpeg error",
-                                 message="There was an error loading the "
-                                         "required FFmpeg libraries!"
-                                         "\n\nThe application will close now.",
-                                 parent=app)
-            sys.exit()
+    app = MainApplication(root)
 
     try:
         if "--exact" in sys.argv:
@@ -2207,11 +2210,6 @@ def run():
                 parent=app)
     except:
         pass
-
-    app.protocol('WM_DELETE_WINDOW', app.quit)
-
-    app.create_bindings()
-    app.focus_force()
 
     root.mainloop()
 
