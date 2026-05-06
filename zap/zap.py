@@ -9,7 +9,6 @@ Zipped Album Player.
 # TODO:
 # - create new app icon
 # - have the default album be created from the masks instead of extra image
-# - move more of run() into app class
 
 import os
 import sys
@@ -86,10 +85,9 @@ while True:
 
 
 class MainApplication(tk.Toplevel):
-    def __init__(self, parent, padding=PADDING, *args, **kwargs):
+    def __init__(self, parent, *args, **kwargs):
         tk.Toplevel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
-        self.padding = padding
         self.withdraw()
         self.style = ttk.Style()
         #self.style.theme_use("default")
@@ -102,9 +100,9 @@ class MainApplication(tk.Toplevel):
         #self.size = [width, height]
         #self._last_geometry = geometry
         self.size = [WIDTH, HEIGHT]
-        self._last_geometry = "{WIDTH}x{HEIGHT}+0+0"
-        self.default_fonts = FontBase(self, family=FONTNAME)
+        self._last_geometry = f"{WIDTH}x{HEIGHT}+0+0"
         self.padding = PADDING
+        self.default_fonts = FontBase(self, family=FONTNAME, size=FONTSIZE)
 
         self.repeat_album = tk.BooleanVar()
         self.repeat_album.set(self.config_parser.getboolean(
