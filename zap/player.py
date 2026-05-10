@@ -25,10 +25,7 @@ import pyglet
 #pyglet.options['search_local_libs'] = True
 pyglet.options['audio'] = ('silent')
 
-try:
-    assert pyglet.media.codecs.have_ffmpeg()
-except:
-    raise RuntimeError("Error loading FFmpeg shared libraries!")
+assert pyglet.media.codecs.have_ffmpeg()
 
 from pyglet.media.codecs.ffmpeg import *
 

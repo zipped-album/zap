@@ -36,13 +36,22 @@ except ModuleNotFoundError:
 
 from PIL import ImageTk, Image
 
+
 from .album import ZippedAlbum, create_zipped_album
-from .binaries import has_ffmpeg, download_ffmpeg, get_platform
 from .utils import (safely_import_tkinterdnd2, get_hex_colour, is_venv,
                     get_config_folder, FontBase)
 from .widgets import (AutoScrollbar, ResizingCanvas, CanvasProgressbar,
                       TrackTooltip)
 from .dialogues import AboutDialogue, SettingsWindow, CreateAlbumDialogue
+from .binaries import has_ffmpeg, download_ffmpeg, get_platform
+try:
+    from .player import AudioPlayer, GaplessAudioPlayer
+    HAS_FFMPEG = True
+except AssertionError:
+    sys.modules.pop('pyglet.media.codecs.ffmpeg_lib.compat', None)
+    import importlib
+    importlib.invalidate_caches()
+    HAS_FFMPEG = False
 
 tkinterdnd2 = safely_import_tkinterdnd2()
 
@@ -65,7 +74,7 @@ HEIGHT = int(600 * SCALING)
 PADDING = int(8 * SCALING)
 CELLPADDING = int(8 * SCALING) #8=2x4 cell padding
 if platform.system() == "Windows":
-    FONTNAME = "Calibri"
+    FONTNAME = "" #"Segoe UI" #"Calibri"
     FONTSIZE = 11
 elif platform.system() == "Darwin":
     FONTNAME = "Helvetica Neue"
@@ -102,7 +111,7 @@ class MainApplication(tk.Toplevel):
         self.size = [WIDTH, HEIGHT]
         self._last_geometry = f"{WIDTH}x{HEIGHT}+0+0"
         self.padding = PADDING
-        self.default_fonts = FontBase(self, family=FONTNAME, size=FONTSIZE)
+        self.default_fonts = FontBase(self, family=FONTNAME)#, size=FONTSIZE)
 
         self.repeat_album = tk.BooleanVar()
         self.repeat_album.set(self.config_parser.getboolean(
@@ -158,34 +167,35 @@ class MainApplication(tk.Toplevel):
             self.toggle_fullscreen()
 
         if platform.system() == "Windows":
-            self.parent.iconbitmap(os.path.abspath(os.path.join(
+            self.iconbitmap(os.path.abspath(os.path.join(
                 os.path.split(__file__)[0], "zipped_album_icon.ico")))
         else:
             self.parent.tk.call('wm', 'iconphoto', self._w,
                          tk.PhotoImage(file=os.path.abspath(os.path.join(
                     os.path.split(__file__)[0], "zipped_album_icon.png"))))
         self.geometry(f"{WIDTH}x{HEIGHT}+0+0")
-        self.update()
+        #self.update()
         self.deiconify()
         self.minsize(WIDTH-HEIGHT, 0)
         self.lift()
 
         #size, pos_x, pos_y = self._last_geometry.split("+")
         #width, height = [int(x) for x in size.split("x")]
-        self.geometry(f"{WIDTH-1}x{HEIGHT-1}+0+0")  # hack for removing empty scrollbar
+        #self.geometry(f"{WIDTH-1}x{HEIGHT-1}+0+0")  # hack for removing empty scrollbar
         #self.parent.geometry(f"{width-1}x{height-1}{pos_x}{pos_y}")  # hack for removing empty scrollbar
-        self.update_idletasks()
-        self.geometry(f"{WIDTH}x{HEIGHT}")
+        #self.update_idletasks()
+        #self.geometry(f"{WIDTH}x{HEIGHT}")
         #self.parent.geometryself._last_geometry)
 
         self.create_menu()
-        self.update()
 
         self.protocol('WM_DELETE_WINDOW', self.quit)
         self.create_bindings()
+        self.update()
         self.focus_force()
 
-        if not has_ffmpeg():
+        if not HAS_FFMPEG:
+            time.sleep(0.1)
             self.handle_ffmpeg_download()
         try:
             global AudioPlayer, GaplessAudioPlayer
@@ -194,14 +204,13 @@ class MainApplication(tk.Toplevel):
                 self.audio_system = \
                     list(AudioPlayer.available_audio_systems.keys())[0]
 
-        except RuntimeError as e:
-            if "ffmpeg" in repr(e).lower():
-                messagebox.showerror(title="FFmpeg error",
-                                     message="There was an error loading the "
-                                             "required FFmpeg libraries!\n\n"
-                                             "The application will close now.",
-                                     parent=self)
-                sys.exit()
+        except AssertionError as e:
+            messagebox.showerror(title="FFmpeg error",
+                                 message="There was an error loading the "
+                                         "required FFmpeg libraries!\n\n"
+                                         "The application will close now.",
+                                 parent=self)
+            sys.exit()
 
         def update_player():
             try:
@@ -330,7 +339,7 @@ class MainApplication(tk.Toplevel):
             #    accelerator=f"{f_accelerator_prefix}-,")
             view_menu_label = "View "  # hack to fix automatic MacOS View menu
         else:
-            modifier = "Control"
+            modifier = "Ctrl"
             f_accelerator_prefix = ""
             view_menu_label = "View"
 
@@ -357,7 +366,7 @@ class MainApplication(tk.Toplevel):
 
         file_open = {"label": "Open...",
                      "command": self._open_album,
-                     "accelerator" :f"{modifier}-O"}
+                     "accelerator": f"{modifier}-O"}
         self.file_menu.add_command(**file_open)
         self.file_menu_bar.add_command(**file_open)
 
@@ -374,11 +383,17 @@ class MainApplication(tk.Toplevel):
         self.file_menu.add_command(**file_create)
         self.file_menu_bar.add_command(**file_create)
 
+        settings = {"label": "Settings...",
+                    "command": lambda: SettingsWindow(self),
+                    "accelerator": f"{modifier}-,"}
+        quit = {"label": "Quit",
+                "command": self.quit,
+                "accelerator": f"{modifier}-Q"}
         if platform.system() != "Darwin":
             self.file_menu_bar.add_separator()
-            self.file_menu_bar.add_command(label="Quit",
-                                           command=self.quit,
-                                           accelerator=f"{modifier}-Q")
+            self.file_menu_bar.add_command(**settings)
+            self.file_menu_bar.add_separator()
+            self.file_menu_bar.add_command(**quit)
 
         self.view_menu = tk.Menu(self.menubar, tearoff=False)
         self.menu.add_cascade(menu=self.view_menu, label=view_menu_label)
@@ -615,14 +630,9 @@ class MainApplication(tk.Toplevel):
             self.parent["menu"] = self.menubar
 
         self.menu.add_separator()
-        self.menu.add_command(
-                label="Settings...",
-                command=lambda: AboutDialogue(self),
-                accelerator=f"{f_accelerator_prefix},")
+        self.menu.add_command(**settings)
         self.menu.add_separator()
-        self.menu.add_command(label="Quit",
-                              command=self.quit,
-                              accelerator=f"{modifier}-Q")
+        self.menu.add_command(**quit)
 
         self.config(menu=self.menubar)
 
@@ -782,7 +792,7 @@ class MainApplication(tk.Toplevel):
         self.style.configure('Treeview', relief="flat",
                              borderwidth=1 * SCALING)
         self.tree = ttk.Treeview(tree_frame, show="tree", selectmode="browse")
-        #self.tree.tag_configure('normal', font=font(FONTSIZE))
+        self.tree.tag_configure('normal', font=self.default_fonts.spec())
         self.tree.tag_configure('bold',
                                 font=self.default_fonts.spec(weight="bold"))
         #rgb = [x / 65535 for x in self.winfo_rgb(self.style.lookup(
@@ -919,6 +929,8 @@ class MainApplication(tk.Toplevel):
             self.bind(f"<{modifier}-m>", self.toggle_show_menubar)
             self.bind("<F11>", self.toggle_fullscreen)
             self.bind("<F1>", lambda e: AboutDialogue(self))
+
+        self.bind(f"<{modifier}-,>", lambda e: SettingsWindow(self))
         self.bind(f"<{modifier}-q>", lambda e: self.quit())
 
         self.tree.bind("<Down>", lambda e: None)

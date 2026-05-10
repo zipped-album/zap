@@ -1,7 +1,10 @@
 import os
 import sys
+import shutil
 import colorsys
 import platform
+import tempfile
+import textwrap
 import subprocess
 
 import tkinter as tk
@@ -69,7 +72,6 @@ def is_venv():
 
     return (base_prefix or real_prefix) != sys.prefix
 
-
 def get_config_folder():
     """Return ZAP configuration folder
 
@@ -90,6 +92,77 @@ def get_config_folder():
         home = sys.prefix
     return os.path.join(home, ".zap")
 
+def delete_folder_on_exit(path, wait_pid=None, max_tries=5, sleep=0.5):
+    """Delete a folder after the application has exited.
+    
+    This launches a detached Python helper script that waits until the PID
+    does not exist anymore, then deletes the folder and removes the helper
+    script.
+    
+    Parameters
+    ----------
+    path : str
+    	the path of the folder to delete
+    wait_pid : int, optional
+        the PID of the process to wait for before attempting deletion; uses
+	the PID of current process if None(default=None)
+    max_tries : int, optional
+        the amount of times a deletion should be attempted (default=5)
+    sleep: float, optional
+        the time to sleep in between attempts (default=0.5)
+    """
+
+    if wait_pid is None:
+        wait_pid = os.getpid()
+    python = sys.executable
+    helper_code = textwrap.dedent(f"""\
+        import os, time, shutil, sys, traceback
+        pid = {wait_pid}
+        target = {path!r}
+        helper = {{}}
+        try:
+            # wait for PID to exit
+            while True:
+                try:
+                    os.kill(pid, 0)
+                except Exception:
+                    break
+                time.sleep({sleep})
+            # attempt removal a few times
+            for _ in range({max_tries}):
+                try:
+                    if os.path.exists(target):
+                        shutil.rmtree(target)
+                    break
+                except Exception:
+                    time.sleep({sleep})
+            # remove helper file itself
+            try:
+                os.remove(__file__)
+            except Exception:
+                pass
+        except Exception:
+            traceback.print_exc()
+        finally:
+            sys.exit(0)
+    """)
+    fd, helper_path = tempfile.mkstemp(prefix="delete_helper_", suffix=".py")
+    os.close(fd)
+    with open(helper_path, "w", encoding="utf-8") as f:
+        f.write(helper_code)
+    # Launch detached helper
+    if platform.system() == "Windows":
+        # CREATE_NO_WINDOW | DETACHED_PROCESS
+        CREATE_NO_WINDOW = 0x08000000
+        DETACHED_PROCESS = 0x00000008
+        subprocess.Popen([python, helper_path],
+                         creationflags=CREATE_NO_WINDOW | DETACHED_PROCESS,
+                         close_fds=True)
+    else:
+        subprocess.Popen([python, helper_path],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         close_fds=True)
+
 
 class FontBase:
 
@@ -104,8 +177,8 @@ class FontBase:
             size = target_font.actual("size")
         self._size = size
 
-        tkfont.nametofont(self.name).configure(family=self._family,
-                                               size=self._size)
+        #tkfont.nametofont(self.name).configure(family=self._family,
+                                               #size=self._size)
 
     @property
     def name(self):
@@ -133,11 +206,4 @@ class FontBase:
                            size=self._px(size_offset),
                            weight=weight, slant=slant)
 
-
-class Theme:
-    def __init__(self, scaling):
-        if tk.TclVersion >= 9:
-            self.scaling = 1
-        else:
-            self.scaling = scaling
 

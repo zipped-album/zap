@@ -9,7 +9,7 @@ from tkinter import filedialog
 from tkinter import messagebox
 
 from .__init__ import __version__
-from .utils import get_config_folder
+from .utils import get_config_folder, delete_folder_on_exit
 
 
 class DialogueWindow(tk.Toplevel):
@@ -103,7 +103,8 @@ class AboutDialogue(DialogueWindow):
     TITLE = "About ZAP"
 
     def create_widgets(self):
-        with open(os.path.join(os.path.split(__file__)[0], "ABOUT.txt")) as f:
+        with open(os.path.join(os.path.split(__file__)[0], "ABOUT.txt"),
+		  encoding="utf-8") as f:
             about_text = f.read()
         self.text = tk.Text(self, width=79, height=len(about_text.split("\n")))
         self.text.pack(expand=True, fill="both")
@@ -207,7 +208,8 @@ class SettingsWindow(DialogueWindow):
         ttk.Button(advanced_frame, text="Reset Configuration...",
                    command=self.reset_config).grid(
             row=0, column=1, sticky="w",)
-
+        for child in advanced_frame.winfo_children():
+            child.grid_configure(padx=padding/2, pady=padding/4)
 
     def on_show(self):
         self.update_audio_values()
@@ -269,19 +271,25 @@ class SettingsWindow(DialogueWindow):
             subprocess.Popen(["xdg-open", config_folder])
 
     def reset_config(self):
-        msg = ("This will delete all user configuration and close the"
+        msg = ("This will delete all user configuration and close the "
                "application!\n\n Continue?")
 
         if messagebox.askyesno("Reset Configuration", msg, icon='warning',
                                parent=self):
             config_folder = get_config_folder()
+            config_file = os.path.join(config_folder, "config")
+            ffmpeg_folder = os.path.join(config_folder, "ffmpeg")
             try:
-                shutil.rmtree(config_folder)
-                os.makedirs(config_folder)
+                if os.path.exists(config_file):
+                    os.remove(config_file)
             except Exception as e:
                 messagebox.showerror(
-                    "Error", f'Could not delete data in "{config_folder}"!')
+                    "Error",
+                    f'Could not delete configurationfile "{config_file}"!')
+            if os.path.exists(ffmpeg_folder):
+                delete_folder_on_exit(ffmpeg_folder)
             self.parent.parent.destroy()
+
 
 class CreateAlbumDialogue(DialogueWindow):
     TITLE = "Create Zipped Album"
