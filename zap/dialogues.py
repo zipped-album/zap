@@ -5,6 +5,7 @@ import subprocess
 
 import tkinter as tk
 import tkinter.ttk as ttk
+import tkinter.font as tkfont
 from tkinter import filedialog
 from tkinter import messagebox
 
@@ -104,7 +105,7 @@ class AboutDialogue(DialogueWindow):
 
     def create_widgets(self):
         with open(os.path.join(os.path.split(__file__)[0], "ABOUT.txt"),
-		  encoding="utf-8") as f:
+                  encoding="utf-8") as f:
             about_text = f.read()
         self.text = tk.Text(self, width=79, height=len(about_text.split("\n")))
         self.text.pack(expand=True, fill="both")
@@ -117,22 +118,24 @@ class SettingsWindow(DialogueWindow):
 
     def create_widgets(self):
         padding = self.parent.padding
-        self.frame = ttk.Frame(self)
+        self.frame = ttk.Frame(self, padding=padding)
         self.frame.pack()
 
         style = ttk.Style()
-        style.configure("TLabelframe.Label",
-                        font=self.parent.default_fonts.spec(weight="bold"))
+        bold_font = tkfont.nametofont(
+            style.lookup("TLabelframe.Label", "font")).copy()
+        bold_font["weight"] = "bold"
+        style.configure("Bold.TLabelframe.Label", font=bold_font)
 
         # Audio
         from .player import AudioPlayer
         self.available_audio_systems = AudioPlayer.available_audio_systems
         self.available_sample_formats = AudioPlayer.available_sample_formats
 
-        audio_frame = ttk.LabelFrame(self.frame,
-                                     text="Audio",
-                                     padding=(padding/2, padding/4*3))
-        audio_frame.pack(fill="x", padx=padding, pady=padding)
+        audio_frame = ttk.LabelFrame(self.frame, text="Audio",
+                                     style="Bold.TLabelframe",
+                                     padding=(padding, padding))
+        audio_frame.pack(fill="x")#, padx=padding*2, pady=padding*2)
 
         ttk.Label(audio_frame, text="Audio System:").grid(
             row=0, column=0, sticky="w",)
@@ -195,21 +198,24 @@ class SettingsWindow(DialogueWindow):
 
         audio_frame.columnconfigure(1, weight=1)
         for child in audio_frame.winfo_children():
-            child.grid_configure(padx=padding/2, pady=padding/4)
+            child.grid_configure(padx=padding/2, pady=padding/2)
 
         # Advanced
-        advanced_frame = ttk.LabelFrame(self.frame,
-                                        text="Advanced",
-                                        padding=(padding/2, padding/4*3))
-        advanced_frame.pack(fill="x", padx=padding, pady=padding)
-        ttk.Button(advanced_frame, text="Open Configuration Folder",
-                   command=self.open_config_folder).grid(
+        advanced_frame = ttk.LabelFrame(self.frame, text="Advanced",
+                                        style="Bold.TLabelframe",
+                                        padding=(padding, padding))
+        advanced_frame.pack(fill="x")#, padx=padding*2, pady=padding*2)
+        ttk.Button(advanced_frame, text="Open Local Data Folder",
+                   command=self.open_data_folder).grid(
             row=0, column=0, sticky="w",)
-        ttk.Button(advanced_frame, text="Reset Configuration...",
-                   command=self.reset_config).grid(
+        ttk.Button(advanced_frame, text="Clear Local Data...",
+                   command=self.clear_data).grid(
             row=0, column=1, sticky="w",)
         for child in advanced_frame.winfo_children():
-            child.grid_configure(padx=padding/2, pady=padding/4)
+            child.grid_configure(padx=padding/2, pady=padding/2)
+
+        for child in self.frame.winfo_children():
+            child.pack_configure(padx=padding, pady=padding)
 
     def on_show(self):
         self.update_audio_values()
@@ -259,7 +265,7 @@ class SettingsWindow(DialogueWindow):
         else:
             self.hq_resampling.state(["!disabled"])
 
-    def open_config_folder(self):
+    def open_data_folder(self):
         config_folder = get_config_folder()
         if not os.path.exists(config_folder):
             os.makedirs(config_folder)
@@ -270,11 +276,12 @@ class SettingsWindow(DialogueWindow):
         else:
             subprocess.Popen(["xdg-open", config_folder])
 
-    def reset_config(self):
-        msg = ("This will delete all user configuration and close the "
-               "application!\n\n Continue?")
+    def clear_data(self):
+        msg = ("This will delete the contents of the Local Data Folder "
+               "(config file, downloaded FFmpeg libraries) and close the "
+               "application!\n\nContinue?")
 
-        if messagebox.askyesno("Reset Configuration", msg, icon='warning',
+        if messagebox.askyesno("Clear Local Data", msg, icon='warning',
                                parent=self):
             config_folder = get_config_folder()
             config_file = os.path.join(config_folder, "config")
@@ -285,7 +292,7 @@ class SettingsWindow(DialogueWindow):
             except Exception as e:
                 messagebox.showerror(
                     "Error",
-                    f'Could not delete configurationfile "{config_file}"!')
+                    f'Could not delete configuration file "{config_file}"!')
             if os.path.exists(ffmpeg_folder):
                 delete_folder_on_exit(ffmpeg_folder)
             self.parent.parent.destroy()
@@ -309,16 +316,19 @@ class CreateAlbumDialogue(DialogueWindow):
         self.open_album.trace_add("write", self.change_open_album)
 
         padding = self.parent.padding
-        frame = ttk.Frame(self)
+        frame = ttk.Frame(self, padding=padding)
         frame.pack()
 
         style = ttk.Style()
-        style.configure("TLabelframe.Label",
-                        font=self.parent.default_fonts.spec(weight="bold"))
+        bold_font = tkfont.nametofont(
+            style.lookup("TLabelframe.Label", "font")).copy()
+        bold_font["weight"] = "bold"
+        style.configure("Bold.TLabelframe.Label", font=bold_font)
 
         input_frame = ttk.LabelFrame(frame, text="Input",
-                                     padding=(padding/2, padding/4*3))
-        input_frame.pack(fill="x", padx=padding, pady=(padding, 0))
+                                     style="Bold.TLabelframe",
+                                     padding=(padding, padding))
+        input_frame.pack(fill="x")#, padx=padding, pady=(padding, 0))
         dir_label = ttk.Label(input_frame, text="Source Folder:").grid(
             row=0, column=0, sticky="w")
         self.dir_entry = ttk.Entry(input_frame, textvariable=self.directory,
@@ -329,16 +339,18 @@ class CreateAlbumDialogue(DialogueWindow):
         self.dir_button.grid(row=1, column=1, sticky="e")
         input_frame.columnconfigure(1, weight=1)
         for child in input_frame.winfo_children():
-            child.grid_configure(padx=padding/2, pady=padding/4)
+            child.grid_configure(padx=padding/2, pady=padding/2)
 
         output_frame = ttk.LabelFrame(frame, text="Output",
-                                     padding=(padding/2, padding/4*3))
-        output_frame.pack(fill="x", padx=padding, pady=(padding, 0))
+                                      style="Bold.TLabelframe",
+                                      padding=(padding, padding))
+        output_frame.pack(fill="x")#, padx=padding, pady=(padding, 0))
         filename_label = ttk.Label(output_frame, text="Target File:").grid(
             row=0, column=0, sticky="w")
-        filename_entry = ttk.Entry(output_frame, textvariable=self.filename,
-                                   width=50)
-        filename_entry.grid(row=1, column=0, sticky="ew")
+        self.filename_entry = ttk.Entry(output_frame,
+                                        textvariable=self.filename,
+                                        width=50)
+        self.filename_entry.grid(row=1, column=0, sticky="ew")
         ttk.Button(output_frame, text="Browse...",
                    command=self.browse_out).grid(row=1, column=1, sticky="e")
         ttk.Checkbutton(output_frame,
@@ -347,9 +359,9 @@ class CreateAlbumDialogue(DialogueWindow):
                                                 columnspan=3)
         output_frame.columnconfigure(1, weight=1)
         for child in output_frame.winfo_children():
-            child.grid_configure(padx=padding/2, pady=padding/4)
+            child.grid_configure(padx=padding/2, pady=padding/2)
 
-        button_frame = ttk.Frame(frame, padding=(padding/2, padding/4*3))
+        button_frame = ttk.Frame(frame)
         button_frame.pack(fill="x")
         ttk.Checkbutton(button_frame,
                         text="Open album after creation",
@@ -363,14 +375,17 @@ class CreateAlbumDialogue(DialogueWindow):
                                    command=self.close)
         # Cross-platform button ordering
         if platform.system() in ("Darwin", "Linux"): # Cancel | Create
-            cancel_button.grid(row=0, column=1, sticky="e")
+            cancel_button.grid(row=0, column=1, sticky="e", padx=padding)
             self.create_button.grid(row=0, column=2, sticky="e")
         else: # Create | Cancel
-            self.create_button.grid(row=0, column=1, sticky="e")
+            self.create_button.grid(row=0, column=1, sticky="e", padx=padding)
             cancel_button.grid(row=0, column=2, sticky="e")
         button_frame.columnconfigure(0, weight=1)
-        for child in button_frame.winfo_children():
-            child.grid_configure(padx=padding/2, pady=padding/4)
+        #for child in button_frame.winfo_children():
+        #    child.grid_configure(padx=padding/2, pady=padding/2)
+
+        for child in frame.winfo_children():
+            child.pack_configure(padx=padding, pady=padding)
 
     def on_show(self):
         self.dir_entry.focus_set()
@@ -391,11 +406,13 @@ class CreateAlbumDialogue(DialogueWindow):
         self.focus_force()
         if directory:
             self.directory.set(directory)
+            self.dir_entry.xview_moveto(1.0)
             if not self.filename.get():
                 ext = ".zlbm"
                 if self.png.get():
                     ext += ".png"
                 self.filename.set(directory + ext)
+                self.filename_entry.xview_moveto(1.0)
             if not self.parent.config_parser.has_section("CREATE"):
                 self.parent.config_parser.add_section("CREATE")
             self.parent.config_parser.set("CREATE", "last_input_directory",
@@ -418,6 +435,7 @@ class CreateAlbumDialogue(DialogueWindow):
             if self.png.get():
                 filename += ".png"
             self.filename.set(filename)
+            self.filename_entry.xview_moveto(1.0)
             if not self.parent.config_parser.has_section("CREATE"):
                 self.parent.config_parser.add_section("CREATE")
             self.parent.config_parser.set("CREATE", "last_output_directory",

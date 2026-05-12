@@ -94,15 +94,15 @@ def get_config_folder():
 
 def delete_folder_on_exit(path, wait_pid=None, max_tries=5, sleep=0.5):
     """Delete a folder after the application has exited.
-    
+
     This launches a detached Python helper script that waits until the PID
     does not exist anymore, then deletes the folder and removes the helper
     script.
-    
+
     Parameters
     ----------
     path : str
-    	the path of the folder to delete
+        the path of the folder to delete
     wait_pid : int, optional
         the PID of the process to wait for before attempting deletion; uses
 	the PID of current process if None(default=None)
@@ -110,6 +110,7 @@ def delete_folder_on_exit(path, wait_pid=None, max_tries=5, sleep=0.5):
         the amount of times a deletion should be attempted (default=5)
     sleep: float, optional
         the time to sleep in between attempts (default=0.5)
+
     """
 
     if wait_pid is None:
@@ -166,23 +167,10 @@ def delete_folder_on_exit(path, wait_pid=None, max_tries=5, sleep=0.5):
 
 class FontBase:
 
-    def __init__(self, parent, name="TkDefaultFont", family=None, size=None):
+    def __init__(self, parent, family, size):
         self.root = parent.nametowidget(".")
-        self._name = name
-        target_font = tkfont.nametofont(self._name)
-        if family is None:
-            family = target_font.actual("family")
         self._family = family
-        if size is None:
-            size = target_font.actual("size")
         self._size = size
-
-        #tkfont.nametofont(self.name).configure(family=self._family,
-                                               #size=self._size)
-
-    @property
-    def name(self):
-        return self._name
 
     @property
     def family(self):

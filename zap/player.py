@@ -29,8 +29,6 @@ assert pyglet.media.codecs.have_ffmpeg()
 
 from pyglet.media.codecs.ffmpeg import *
 
-from .__init__ import __author__, __version__
-
 
 def _discover_available_audio_systems():
     available_audio_systems = {}
@@ -619,6 +617,7 @@ class FFmpegSource(FFmpegSource):
                 0, None) < 0:
                 raise Exception("Could not set sample rate context values.")
             return swr_ctx
+
 
 class FFmpegDecoder(FFmpegDecoder):
     """Modified FFmpegDecoder to load modified FFmpegSource."""

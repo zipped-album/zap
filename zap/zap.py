@@ -36,7 +36,6 @@ except ModuleNotFoundError:
 
 from PIL import ImageTk, Image
 
-
 from .album import ZippedAlbum, create_zipped_album
 from .utils import (safely_import_tkinterdnd2, get_hex_colour, is_venv,
                     get_config_folder, FontBase)
@@ -44,17 +43,11 @@ from .widgets import (AutoScrollbar, ResizingCanvas, CanvasProgressbar,
                       TrackTooltip)
 from .dialogues import AboutDialogue, SettingsWindow, CreateAlbumDialogue
 from .binaries import has_ffmpeg, download_ffmpeg, get_platform
-try:
-    from .player import AudioPlayer, GaplessAudioPlayer
-    HAS_FFMPEG = True
-except AssertionError:
-    sys.modules.pop('pyglet.media.codecs.ffmpeg_lib.compat', None)
-    import importlib
-    importlib.invalidate_caches()
-    HAS_FFMPEG = False
 
 tkinterdnd2 = safely_import_tkinterdnd2()
 
+
+HAS_FFMPEG = has_ffmpeg()
 
 if "--SCALING" in sys.argv:
     SCALING = float(sys.argv[sys.argv.index("--SCALING") + 1])
@@ -111,7 +104,9 @@ class MainApplication(tk.Toplevel):
         self.size = [WIDTH, HEIGHT]
         self._last_geometry = f"{WIDTH}x{HEIGHT}+0+0"
         self.padding = PADDING
-        self.default_fonts = FontBase(self, family=FONTNAME)#, size=FONTSIZE)
+        default_font = tkfont.nametofont("TkDefaultFont")
+        self.custom_fonts = FontBase(self, family=FONTNAME,
+                                     size=default_font.actual("size"))
 
         self.repeat_album = tk.BooleanVar()
         self.repeat_album.set(self.config_parser.getboolean(
@@ -763,23 +758,23 @@ class MainApplication(tk.Toplevel):
         frame_up.columnconfigure(0, weight=1)
         frame_up.grid_configure(padx=PADDING, pady=PADDING)
         self.track = ttk.Label(frame_up, text="", anchor="center",
-                               font=self.default_fonts.spec(+8, weight="bold"),
+                               font=self.custom_fonts.spec(+8, weight="bold"),
                                justify="center",
                                wraplength=WIDTH-HEIGHT-2*PADDING)
         self.track.grid(column=0, row=0, sticky="ew")
         self.artist = ttk.Label(frame_up, text="No Album", anchor="center",
-                                font=self.default_fonts.spec(+4,
+                                font=self.custom_fonts.spec(+4,
                                                              slant="italic"),
                                 justify="center",
                                 wraplength=WIDTH-HEIGHT-2*PADDING)
         self.artist.grid(column=0, row=1, sticky="ew")
         self.info = ttk.Label(frame_up, text="", anchor="center",
-                              font=self.default_fonts.spec(-2))
+                              font=self.custom_fonts.spec(-2))
         self.info.grid(column=0, row=3, sticky="ew", pady=(PADDING/2, 0))
 
         #self.style.configure("Treeview.Heading",
-        #                     font=self.default_fonts.spec())
-        #self.style.configure("Treeview", self.default_fonts.spec())
+        #                     font=self.custom_fonts.spec())
+        #self.style.configure("Treeview", self.custom_fonts.spec())
         if SCALING > 1:
             self.style.configure("Treeview",
                                  rowheight=int(13 * (SCALING * 1.6)))
@@ -792,9 +787,9 @@ class MainApplication(tk.Toplevel):
         self.style.configure('Treeview', relief="flat",
                              borderwidth=1 * SCALING)
         self.tree = ttk.Treeview(tree_frame, show="tree", selectmode="browse")
-        self.tree.tag_configure('normal', font=self.default_fonts.spec())
+        self.tree.tag_configure('normal', font=self.custom_fonts.spec())
         self.tree.tag_configure('bold',
-                                font=self.default_fonts.spec(weight="bold"))
+                                font=self.custom_fonts.spec(weight="bold"))
         #rgb = [x / 65535 for x in self.winfo_rgb(self.style.lookup(
         #    'TFrame', 'background'))]
         rgb = [x / 65535 for x in self.winfo_rgb(
@@ -822,7 +817,7 @@ class MainApplication(tk.Toplevel):
         self.tree.configure(yscrollcommand=self.tree_vscrollbar.set)
 
         self.track_tooltip = TrackTooltip(self.tree, COLOUR,
-                                          self.default_fonts,
+                                          self.custom_fonts,
                                           self.always_on_top)
 
         self.frame_bottom = frame_bottom = ttk.Frame(frame_right)
@@ -832,7 +827,9 @@ class MainApplication(tk.Toplevel):
         frame_bottom.columnconfigure(2, minsize=int(50 * SCALING))
         frame_bottom.grid_configure(padx=PADDING, pady=PADDING)
 
+        self.style.configure('Play.TButton', font=self.custom_fonts.spec())
         self.playpause_button = ttk.Button(frame_bottom, text="▶", width=1,
+                                           style="Play.TButton",
                                            command=self.playpause,
                                            takefocus=0, state="disabled")
         self.playpause_button.grid(column=0, row=0, sticky="nesw")
@@ -849,12 +846,12 @@ class MainApplication(tk.Toplevel):
         #self.playhead_slider.configure(bg=shaded_colour)
         self.playpause_label = ttk.Label(frame_bottom, text="Paused",
                                          anchor="center",
-                                         font=self.default_fonts.spec(
+                                         font=self.custom_fonts.spec(
                                              -4, weight="bold"),
                                          state="disabled")
         self.playpause_label.grid(column=0, row=1, sticky="ns")
         self.playhead_label = ttk.Label(frame_bottom, anchor="center",
-                                        font=self.default_fonts.spec(
+                                        font=self.custom_fonts.spec(
                                             weight="bold"))
         self.playhead_label.grid(column=1, row=1, sticky="ns")
         self.playhead = None
@@ -868,13 +865,13 @@ class MainApplication(tk.Toplevel):
                                              maximum=100, value=100)
         self.volume_slider.place(relheight=1.0, relwidth=1.0)
         self.volume_label = ttk.Label(frame_bottom, anchor="center",
-                                      font=self.default_fonts.spec(
+                                      font=self.custom_fonts.spec(
                                           -4, weight="bold"))
         self.volume = 100
         self.volume_label.grid(column=2, row=1, sticky="ns")
 
         self.trackinfo = ttk.Label(frame_bottom, text="", anchor="center",
-                                   font=self.default_fonts.spec(-2))
+                                   font=self.custom_fonts.spec(-2))
         self.trackinfo.grid(column=0, row=2, columnspan=3, sticky="ew",
                             pady=(PADDING/2, 0))
 
@@ -1566,10 +1563,10 @@ class MainApplication(tk.Toplevel):
         self.info["text"] = f"{year} | {n_tracks} tracks | {playtime}"
 
         #normal_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE))
-        normal_font = self.default_fonts.font()
+        normal_font = self.custom_fonts.font()
         #bold_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE),
         #                        weight="bold")
-        bold_font = self.default_fonts.font(weight="bold")
+        bold_font = self.custom_fonts.font(weight="bold")
         self.title_widths = [normal_font.measure(s["display"][1]) for s in \
                              self.loaded_album.tracklist]
         self.title_widths_bold = [bold_font.measure(s["display"][1]) for s in \
@@ -1675,10 +1672,10 @@ class MainApplication(tk.Toplevel):
                     self.tree.column('2')['width'] - CELLPADDING
         tracks = [x["display"] for x in self.loaded_album.tracklist]
         #normal_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE))
-        normal_font = self.default_fonts.font()
+        normal_font = self.custom_fonts.font()
         #bold_font = tkfont.Font(family=FONTNAME, size=_px(FONTSIZE),
         #                        weight="bold")
-        bold_font = self.default_fonts.font(weight="bold")
+        bold_font = self.custom_fonts.font(weight="bold")
         for c, track in enumerate(tracks):
             track = track[:]
             text_width = self.title_widths[c]
