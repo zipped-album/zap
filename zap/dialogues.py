@@ -207,10 +207,12 @@ class SettingsWindow(DialogueWindow):
         advanced_frame.pack(fill="x")#, padx=padding*2, pady=padding*2)
         ttk.Button(advanced_frame, text="Open Local Data Folder",
                    command=self.open_data_folder).grid(
-            row=0, column=0, sticky="w",)
+            row=0, column=0, sticky="ew")
         ttk.Button(advanced_frame, text="Clear Local Data...",
                    command=self.clear_data).grid(
-            row=0, column=1, sticky="w",)
+            row=0, column=1, sticky="ew")
+        advanced_frame.columnconfigure(0, weight=1)
+        advanced_frame.columnconfigure(1, weight=1)
         for child in advanced_frame.winfo_children():
             child.grid_configure(padx=padding/2, pady=padding/2)
 

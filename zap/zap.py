@@ -47,7 +47,7 @@ from .binaries import has_ffmpeg, download_ffmpeg, get_platform
 tkinterdnd2 = safely_import_tkinterdnd2()
 
 
-HAS_FFMPEG = has_ffmpeg()
+#HAS_FFMPEG = has_ffmpeg()
 
 if "--SCALING" in sys.argv:
     SCALING = float(sys.argv[sys.argv.index("--SCALING") + 1])
@@ -172,7 +172,7 @@ class MainApplication(tk.Toplevel):
         #self.update()
         self.deiconify()
         self.minsize(WIDTH-HEIGHT, 0)
-        self.lift()
+        #self.lift()
 
         #size, pos_x, pos_y = self._last_geometry.split("+")
         #width, height = [int(x) for x in size.split("x")]
@@ -187,9 +187,8 @@ class MainApplication(tk.Toplevel):
         self.protocol('WM_DELETE_WINDOW', self.quit)
         self.create_bindings()
         self.update()
-        self.focus_force()
 
-        if not HAS_FFMPEG:
+        if not has_ffmpeg():
             time.sleep(0.1)
             self.handle_ffmpeg_download()
         try:
@@ -207,6 +206,9 @@ class MainApplication(tk.Toplevel):
                                  parent=self)
             sys.exit()
 
+        self.lift()
+        self.focus_force()
+        
         def update_player():
             try:
                 if hasattr(self, "player") and self.player.is_playing:
