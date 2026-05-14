@@ -41,7 +41,7 @@ from .utils import (safely_import_tkinterdnd2, get_hex_colour, is_venv,
                     get_config_folder, FontBase)
 from .widgets import (AutoScrollbar, ResizingCanvas, CanvasProgressbar,
                       TrackTooltip)
-from .dialogues import AboutDialogue, SettingsWindow, CreateAlbumDialogue
+from .dialogues import AboutDialogue, SettingsDialogue, CreateAlbumDialogue
 from .binaries import has_ffmpeg, download_ffmpeg, get_platform
 
 tkinterdnd2 = safely_import_tkinterdnd2()
@@ -320,15 +320,15 @@ class MainApplication(tk.Toplevel):
             self.master.createcommand('tkAboutDialog',
                                       lambda: AboutDialogue(self))
             self.master.createcommand('tk::mac::ShowPreferences',
-                                      lambda: SettingsWindow(self))
+                                      lambda: SettingsDialogue(self))
             self.master.createcommand('tk::mac::Quit', self.quit)
-            modifier = "Command"
-            f_accelerator_prefix = "Command-"
+            modifier = "Cmd"
+            f_accelerator_prefix = "Cmd+"
             #self.apple_menu = tk.Menu(self.menubar, name="apple")
             #self.menubar.add_cascade(menu=self.apple_menu, label="ZAP")
             #self.apple_menu.add_command(
             #    label="About ZAP",
-            #    command=lambda: HelpDialogue(self.master),
+            #    command=lambda: AboutDialogue(self),
             #    accelerator=f"{f_accelerator_prefix}F1")
             #self.apple_menu.add_command(
             #    label="Settings...",
@@ -363,7 +363,7 @@ class MainApplication(tk.Toplevel):
 
         file_open = {"label": "Open...",
                      "command": self._open_album,
-                     "accelerator": f"{modifier}-O"}
+                     "accelerator": f"{modifier}+O"}
         self.file_menu.add_command(**file_open)
         self.file_menu_bar.add_command(**file_open)
 
@@ -381,11 +381,11 @@ class MainApplication(tk.Toplevel):
         self.file_menu_bar.add_command(**file_create)
 
         settings = {"label": "Settings...",
-                    "command": lambda: SettingsWindow(self),
-                    "accelerator": f"{modifier}-,"}
+                    "command": lambda: SettingsDialogue(self),
+                    "accelerator": f"{modifier}+,"}
         quit = {"label": "Quit",
                 "command": self.quit,
-                "accelerator": f"{modifier}-Q"}
+                "accelerator": f"{modifier}+Q"}
         if platform.system() != "Darwin":
             self.file_menu_bar.add_separator()
             self.file_menu_bar.add_command(**settings)
@@ -400,39 +400,39 @@ class MainApplication(tk.Toplevel):
         self.view_presets_menu.add_command(
             label="Minimal",
             command=lambda: self.set_view_preset("minimal"),
-            accelerator=f"{modifier}-1")
+            accelerator=f"{modifier}+1")
         self.view_presets_menu.add_command(
             label="Compact",
             command=lambda: self.set_view_preset("compact"),
-            accelerator=f"{modifier}-2")
+            accelerator=f"{modifier}+2")
         self.view_presets_menu.add_command(
             label="Small",
             command=lambda: self.set_view_preset("small"),
-            accelerator=f"{modifier}-3")
+            accelerator=f"{modifier}+3")
         self.view_presets_menu.add_command(
             label="Default",
             command=lambda: self.set_view_preset("default"),
-            accelerator=f"{modifier}-4")
+            accelerator=f"{modifier}+4")
         self.view_presets_menu.add_command(
             label="Large",
             command=lambda: self.set_view_preset("large"),
-            accelerator=f"{modifier}-5")
+            accelerator=f"{modifier}+5")
         self.view_presets_menu.add_command(
             label="Custom 1",
             command=lambda: self.set_view_preset("custom1"),
-            accelerator=f"{modifier}-6")
+            accelerator=f"{modifier}+6")
         self.view_presets_menu.add_command(
             label="Custom 2",
             command=lambda: self.set_view_preset("custom2"),
-            accelerator=f"{modifier}-7")
+            accelerator=f"{modifier}+7")
         self.view_presets_menu.add_command(
             label="Custom 3",
             command=lambda: self.set_view_preset("custom3"),
-            accelerator=f"{modifier}-8")
+            accelerator=f"{modifier}+8")
         self.view_presets_menu.add_command(
             label="Custom 4",
             command=lambda: self.set_view_preset("custom4"),
-            accelerator=f"{modifier}-9")
+            accelerator=f"{modifier}+9")
         for x in range(1,5):
             if not self.config_parser.has_option("VIEW", f"preset_custom{x}"):
                 self.view_presets_menu.entryconfig(f"Custom {x}",
@@ -453,18 +453,18 @@ class MainApplication(tk.Toplevel):
 
         self.view_menu.add_command(label="Fit to Slides",
                                    command=self.fit_to_slides,
-                                   accelerator=f"{modifier}-0")
+                                   accelerator=f"{modifier}+0")
         self.view_menu.add_separator()
         self.view_menu.add_command(label="Show Next Slide",
                                    command=lambda: self.switch_image(1),
-                                   accelerator=f"Shift-Right")
+                                   accelerator=f"Shift+Right")
         self.view_menu.add_command(label="Show Previous Slide",
                                    command=lambda: self.switch_image(-1),
-                                   accelerator=f"Shift-Left")
+                                   accelerator=f"Shift+Left")
         self.view_menu.add_command(label="Show First Slide",
                                    command=lambda: self.switch_image(
                                        -9999),
-                                   accelerator=f"Shift-w")
+                                   accelerator=f"Shift+W")
         if self.loaded_album is None:
             self.view_menu.entryconfig("Show Next Slide", state="disabled")
             self.view_menu.entryconfig("Show Previous Slide", state="disabled")
@@ -491,7 +491,7 @@ class MainApplication(tk.Toplevel):
             self.view_menu.entryconfig("Show Menubar", state="disabled")
         else:
             self.view_menu.entryconfig("Show Menubar",
-                                       accelerator=f"{modifier}-M")
+                                       accelerator=f"{modifier}+M")
 
         self.playback_menu = tk.Menu(self.menubar, tearoff=False)
         self.menu.add_cascade(menu=self.playback_menu, label="Playback")
@@ -528,16 +528,16 @@ class MainApplication(tk.Toplevel):
         self.playback_menu.add_command(
                 label="Seek to Beginning",
                 command=lambda: self.increment_playhead(-100),
-                accelerator="w")
+                accelerator="W")
         self.playback_menu.add_separator()
         self.playback_menu.add_command(
                 label="Decrease Volume",
                 command=lambda: self.increment_volume(-5),
-                accelerator="Shift-Down")
+                accelerator="Shift+Down")
         self.playback_menu.add_command(
                 label="Increase Volume",
                 command=lambda: self.increment_volume(5),
-                accelerator="Shift-Up")
+                accelerator="Shift+Up")
         if self.loaded_album is None:
             self.playback_menu.entryconfig("Play/Pause", state="disabled")
             self.playback_menu.entryconfig("Select Next Track",
@@ -664,7 +664,7 @@ class MainApplication(tk.Toplevel):
                     pass
             else:
                 self.parent.createcommand('tk::mac::ShowPreferences',
-                                          lambda: SettingsWindow(self))
+                                          lambda: SettingsDialogue(self))
         else:
             try:
                 self.menubar.entryconfig("File", state="normal")
@@ -929,8 +929,8 @@ class MainApplication(tk.Toplevel):
             self.bind("<F11>", self.toggle_fullscreen)
             self.bind("<F1>", lambda e: AboutDialogue(self))
 
-        self.bind(f"<{modifier}-,>", lambda e: SettingsWindow(self))
-        self.bind(f"<{modifier}-q>", lambda e: self.quit())
+        #self.bind(f"<{modifier}-,>", lambda e: SettingsWindow(self))
+        #self.bind(f"<{modifier}-q>", lambda e: self.quit())
 
         self.tree.bind("<Down>", lambda e: None)
         self.bind("<Down>", lambda e: self.increment_track(1))
@@ -998,6 +998,8 @@ class MainApplication(tk.Toplevel):
         self.bind(f"<Shift-Left>", lambda e: self.switch_image(-1))
         self.bind(f"<H>", lambda e: self.switch_image(-1))
         self.bind("<parenright>",
+                  lambda e: self.switch_image(-9999))
+        self.bind("<equal>",
                   lambda e: self.switch_image(-9999))
         self.bind("<W>",
                          lambda e: self.switch_image(-9999))

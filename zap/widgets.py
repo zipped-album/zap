@@ -1,5 +1,6 @@
 import io
 import platform
+import dateutil
 
 import tkinter as tk
 import tkinter.ttk as ttk

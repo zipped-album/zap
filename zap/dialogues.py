@@ -113,7 +113,7 @@ class AboutDialogue(DialogueWindow):
         self.text["state"] = "disabled"
 
 
-class SettingsWindow(DialogueWindow):
+class SettingsDialogue(DialogueWindow):
     TITLE = "ZAP Settings"
 
     def create_widgets(self):
