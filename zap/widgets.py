@@ -209,7 +209,8 @@ class TrackTooltip:
         except Exception:
             title = "Unknown Title"
         label = ttk.Label(self.frame, text=title, justify=tk.LEFT,
-                          font=self.default_fonts.spec(-2, weight="bold"),
+                          font=self.default_fonts.spec("small",
+                                                       weight="bold"),
                           #font=bold_font,
                           wraplength=self.treeview.winfo_width() - 120)
         label.grid(row=0, column= 0, padx=2, ipadx=0, ipady=0, sticky="nw")
@@ -219,7 +220,8 @@ class TrackTooltip:
             artist = "Unknown Artist"
         label = ttk.Label(self.frame,
                           text=artist, justify=tk.LEFT,
-                          font=self.default_fonts.spec(-2, slant="italic"),
+                          font=self.default_fonts.spec("small",
+                                                       slant="italic"),
                           #font=italic_font,
                           wraplength=self.treeview.winfo_width() - 120)
         label.grid(row=1, column= 0, padx=2, ipadx=0, ipady=0, sticky="nw")
@@ -236,7 +238,7 @@ class TrackTooltip:
         except Exception:
             year = "Unknown Year"
         label = ttk.Label(self.frame, text=year, justify=tk.LEFT,
-                          font=self.default_fonts.spec(-2),
+                          font=self.default_fonts.spec("small"),
                           #font=normal_font,
                           wraplength=self.treeview.winfo_width() - 120)
         label.grid(row=2, column= 0, padx=2, ipadx=0, ipady=0, sticky="nw")

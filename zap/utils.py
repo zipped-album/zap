@@ -192,10 +192,11 @@ def delete_folder_on_exit(path, wait_pid=None, max_tries=5, sleep=0.5):
 
 class FontBase:
 
-    def __init__(self, parent, family, size):
+    def __init__(self, parent, family, size, templates={}):
         self.root = parent.nametowidget(".")
         self._family = family
         self._size = size
+        self._templates = templates
 
     @property
     def family(self):
@@ -205,15 +206,23 @@ class FontBase:
     def size(self):
         return self._size
 
-    def _px(self, offset):
-        return self.size + offset
+    @property
+    def templates(self):
+        return self._templates
 
-    def spec(self, size_offset=0, weight="normal", slant="roman"):
-        return f"{{{self._family}}} {self._px(size_offset)} {weight} {slant}"
+    def _px(self, factor):
+        return round(self.size * factor)
 
-    def font(self, size_offset=0, weight="normal", slant="roman"):
+    def spec(self, size_factor=1, weight="normal", slant="roman"):
+        if isinstance(size_factor, str) and size_factor in self._templates:
+            size_factor = self._templates[size_factor]
+        return f"{{{self._family}}} {self._px(size_factor)} {weight} {slant}"
+
+    def font(self, size_factor=1, weight="normal", slant="roman"):
+        if isinstance(size_factor, str) and size_factor in self._templates:
+            size_factor = self._templates[size_factor]
         return tkfont.Font(root=self.root, family=self._family,
-                           size=self._px(size_offset),
+                           size=self._px(size_factor),
                            weight=weight, slant=slant)
 
 

@@ -7,8 +7,6 @@ Zipped Album Player.
 """
 
 # TODO:
-# - scaling on windows: set dpiawareness to 2 (which will scale fonts),
-#   calculate SCALING (will scale widgets)
 # - implement fractional font offsets (instead of additive)
 # - create new app icon
 # - have the default album be created from the masks instead of extra image
@@ -74,6 +72,10 @@ elif platform.system() == "Darwin":
 else:
     FONTNAME = "Nimbus Sans"
     FONTSIZE = 10
+FONT_TEMPLATES = {"huge": 1.6,
+                  "large": 1.3,
+                  "small": 0.85,
+                  "tiny": 0.7}
 
 UPDATE_INTERVALL = 100  # in ms
 
@@ -104,9 +106,9 @@ class MainApplication(tk.Toplevel):
         self._last_geometry = f"{WIDTH}x{HEIGHT}+0+0"
         self.padding = PADDING
         default_font = tkfont.nametofont("TkDefaultFont")
-        print(default_font.actual("size"))
         self.custom_fonts = FontBase(self, family=FONTNAME,
-                                     size=default_font.actual("size"))
+                                     size=default_font.actual("size"),
+                                     templates=FONT_TEMPLATES)
 
         self.repeat_album = tk.BooleanVar()
         self.repeat_album.set(self.config_parser.getboolean(
@@ -760,18 +762,19 @@ class MainApplication(tk.Toplevel):
         frame_up.columnconfigure(0, weight=1)
         frame_up.grid_configure(padx=PADDING, pady=PADDING)
         self.track = ttk.Label(frame_up, text="", anchor="center",
-                               font=self.custom_fonts.spec(+8, weight="bold"),
+                               font=self.custom_fonts.spec("huge",
+                                                           weight="bold"),
                                justify="center",
                                wraplength=WIDTH-HEIGHT-2*PADDING)
         self.track.grid(column=0, row=0, sticky="ew")
         self.artist = ttk.Label(frame_up, text="No Album", anchor="center",
-                                font=self.custom_fonts.spec(+4,
+                                font=self.custom_fonts.spec("large",
                                                              slant="italic"),
                                 justify="center",
                                 wraplength=WIDTH-HEIGHT-2*PADDING)
         self.artist.grid(column=0, row=1, sticky="ew")
         self.info = ttk.Label(frame_up, text="", anchor="center",
-                              font=self.custom_fonts.spec(-2))
+                              font=self.custom_fonts.spec("small"))
         self.info.grid(column=0, row=3, sticky="ew", pady=(PADDING/2, 0))
 
         #self.style.configure("Treeview.Heading",
@@ -849,7 +852,7 @@ class MainApplication(tk.Toplevel):
         self.playpause_label = ttk.Label(frame_bottom, text="Paused",
                                          anchor="center",
                                          font=self.custom_fonts.spec(
-                                             -4, weight="bold"),
+                                             "tiny", weight="bold"),
                                          state="disabled")
         self.playpause_label.grid(column=0, row=1, sticky="ns")
         self.playhead_label = ttk.Label(frame_bottom, anchor="center",
@@ -868,12 +871,12 @@ class MainApplication(tk.Toplevel):
         self.volume_slider.place(relheight=1.0, relwidth=1.0)
         self.volume_label = ttk.Label(frame_bottom, anchor="center",
                                       font=self.custom_fonts.spec(
-                                          -4, weight="bold"))
+                                          "tiny", weight="bold"))
         self.volume = 100
         self.volume_label.grid(column=2, row=1, sticky="ns")
 
         self.trackinfo = ttk.Label(frame_bottom, text="", anchor="center",
-                                   font=self.custom_fonts.spec(-2))
+                                   font=self.custom_fonts.spec("small"))
         self.trackinfo.grid(column=0, row=2, columnspan=3, sticky="ew",
                             pady=(PADDING/2, 0))
 
