@@ -72,10 +72,10 @@ elif platform.system() == "Darwin":
 else:
     FONTNAME = "Nimbus Sans"
     FONTSIZE = 10
-FONT_TEMPLATES = {"huge": 1.6,
-                  "large": 1.3,
-                  "small": 0.85,
-                  "tiny": 0.7}
+FONTSIZE_TEMPLATES = {"huge": 1.6,
+                     "large": 1.3,
+                     "small": 0.85,
+                     "tiny": 0.7}
 
 UPDATE_INTERVALL = 100  # in ms
 
@@ -108,7 +108,7 @@ class MainApplication(tk.Toplevel):
         default_font = tkfont.nametofont("TkDefaultFont")
         self.custom_fonts = FontBase(self, family=FONTNAME,
                                      size=default_font.actual("size"),
-                                     templates=FONT_TEMPLATES)
+                                     size_templates=FONTSIZE_TEMPLATES)
 
         self.repeat_album = tk.BooleanVar()
         self.repeat_album.set(self.config_parser.getboolean(
