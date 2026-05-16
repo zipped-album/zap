@@ -7,6 +7,9 @@ Zipped Album Player.
 """
 
 # TODO:
+# - scaling on windows: set dpiawareness to 2 (which will scale fonts),
+#   calculate SCALING (will scale widgets)
+# - implement fractional font offsets (instead of additive)
 # - create new app icon
 # - have the default album be created from the masks instead of extra image
 
@@ -37,8 +40,8 @@ except ModuleNotFoundError:
 from PIL import ImageTk, Image
 
 from .album import ZippedAlbum, create_zipped_album
-from .utils import (safely_import_tkinterdnd2, get_hex_colour, is_venv,
-                    get_config_folder, FontBase)
+from .utils import (safely_import_tkinterdnd2, get_linux_scaling,
+                    get_hex_colour, is_venv, get_config_folder, FontBase)
 from .widgets import (AutoScrollbar, ResizingCanvas, CanvasProgressbar,
                       TrackTooltip)
 from .dialogues import AboutDialogue, SettingsDialogue, CreateAlbumDialogue
@@ -47,20 +50,16 @@ from .binaries import has_ffmpeg, download_ffmpeg, get_platform
 tkinterdnd2 = safely_import_tkinterdnd2()
 
 
-#HAS_FFMPEG = has_ffmpeg()
-
+SCALING = 1
+if platform.system() == "Linux" and tk.TkVersion < 9:
+    SCALING = get_linux_scaling()
 if "--SCALING" in sys.argv:
-    SCALING = float(sys.argv[sys.argv.index("--SCALING") + 1])
-elif "GDK_SCALE" in os.environ:
-    SCALING = float(os.environ["GDK_SCALE"])
-elif "QT_SCREEN_SCALE_FACTORS" in os.environ:
-    SCALING = float(os.environ["QT_SCREEN_SCALE_FACTORS"].split(
-        ";")[0].split("=")[-1])
-else:
-    SCALING = 1
-
-if tk.TclVersion >= 9:
-    SCALING = 1
+    try:
+        idx = sys.argv.index("--SCALING")
+        if idx + 1 < len(sys.argv):
+            SCALING = float(sys.argv[idx + 1])
+    except (ValueError, IndexError):
+        pass
 
 WIDTH = int(1024 * SCALING)
 HEIGHT = int(600 * SCALING)
@@ -105,6 +104,7 @@ class MainApplication(tk.Toplevel):
         self._last_geometry = f"{WIDTH}x{HEIGHT}+0+0"
         self.padding = PADDING
         default_font = tkfont.nametofont("TkDefaultFont")
+        print(default_font.actual("size"))
         self.custom_fonts = FontBase(self, family=FONTNAME,
                                      size=default_font.actual("size"))
 
@@ -208,7 +208,7 @@ class MainApplication(tk.Toplevel):
 
         self.lift()
         self.focus_force()
-        
+
         def update_player():
             try:
                 if hasattr(self, "player") and self.player.is_playing:
@@ -298,7 +298,7 @@ class MainApplication(tk.Toplevel):
         try:
             if os.path.isfile(config_file):
                 self.config_parser.read(config_file)
-        except:
+        except Exception:
             pass
 
     def write_config(self):
@@ -309,7 +309,7 @@ class MainApplication(tk.Toplevel):
                 os.makedirs(get_config_folder())
             with open(config_file, 'w') as f:
                 self.config_parser.write(f)
-        except:
+        except Exception:
             pass
 
     def create_menu(self):
@@ -637,7 +637,7 @@ class MainApplication(tk.Toplevel):
         try:
             self.menu.tk_popup(event.x_root, event.y_root)
             self.menu.grab_release()
-        except:
+        except Exception:
             pass
 
     def close_context_menu(self, event):
@@ -650,7 +650,7 @@ class MainApplication(tk.Toplevel):
                 if not (x <= event.x_root <= x + w and \
                         y <= event.y_root <= y + h):
                     self.menu_unpost()
-        except:
+        except Exception:
             pass
 
     def change_menu_state(self, state):
@@ -660,7 +660,7 @@ class MainApplication(tk.Toplevel):
             if state == "disabled":
                 try:
                     self.parent.deletecommand('tk::mac::ShowPreferences')
-                except:
+                except Exception:
                     pass
             else:
                 self.parent.createcommand('tk::mac::ShowPreferences',
@@ -675,7 +675,7 @@ class MainApplication(tk.Toplevel):
                     if i != last_index:  # Everything except "Quit"
                         try:
                             file_menu.entryconfig(i, state=state)
-                        except:
+                        except Exception:
                             pass # Skip separators
             except Exception:
                 pass
@@ -776,7 +776,7 @@ class MainApplication(tk.Toplevel):
 
         #self.style.configure("Treeview.Heading",
         #                     font=self.custom_fonts.spec())
-        #self.style.configure("Treeview", self.custom_fonts.spec())
+        self.style.configure("Treeview", font=self.custom_fonts.spec())
         if SCALING > 1:
             self.style.configure("Treeview",
                                  rowheight=int(13 * (SCALING * 1.6)))
@@ -1126,7 +1126,7 @@ class MainApplication(tk.Toplevel):
             im.close()
             try:
                 self.canvas.delete(self.canvas_image)
-            except:
+            except Exception:
                 pass
             self.canvas_image = self.canvas.create_image(
                 self.canvas.width // 2, self.canvas.height // 2,
@@ -1147,14 +1147,14 @@ class MainApplication(tk.Toplevel):
             if self.arrows_visible:
                 self.remove_arrows()
                 self.add_arrows()
-        except:
+        except Exception:
             pass
 
     def hide_image(self):
         try:
             self.canvas.delete(self.canvas_image)
             self.canvas_image = None
-        except:
+        except Exception:
             pass
         self.current_image = None
         self.canvas_arrow_right = False
@@ -1274,7 +1274,7 @@ class MainApplication(tk.Toplevel):
                                     "downloaded successfully!",
                                     parent=self)
                 cleanup()
-            except:
+            except Exception:
                 pass
 
         def handle_error(e):
@@ -1311,7 +1311,7 @@ class MainApplication(tk.Toplevel):
                         start_process()
                     else:
                         cleanup()
-            except:
+            except Exception:
                 pass
 
         def cleanup():
@@ -1330,7 +1330,7 @@ class MainApplication(tk.Toplevel):
                 self.trackinfo["text"] = ""
                 self.update_idletasks()
                 self.update()
-            except:
+            except Exception:
                 pass
 
         def start_process():
@@ -1476,7 +1476,7 @@ class MainApplication(tk.Toplevel):
                 self.tree.item(str(track_id), tags=tags)
                 try:
                     self.player.queue(self.loaded_album.get_audio(track_id + 1))
-                except:
+                except Exception:
                     pass
                 self.selected_track_id = track_id
                 self.playing_track_id = track_id
@@ -1548,7 +1548,7 @@ class MainApplication(tk.Toplevel):
     def load_album(self, path, exact=False):
         try:
             self.loaded_album = ZippedAlbum(path, exact=exact)
-        except:
+        except Exception:
             self.artist["text"] = "No Album"
             file = os.path.split(path)[-1]
             messagebox.showerror(
@@ -1715,12 +1715,12 @@ class MainApplication(tk.Toplevel):
         try:
             codec = track["codec"]
             codec_str = f"{codec} • "
-        except:
+        except Exception:
             codec_str = ""
         try:
             bitrate = int(round(track["streaminfo"]["bitrate"] / 1000))
             bitrate_str = f"{bitrate} kbps • "
-        except:
+        except Exception:
             bitrate_str = ""
         try:
             samplerate = track["streaminfo"]["sample_rate"]
@@ -1728,7 +1728,7 @@ class MainApplication(tk.Toplevel):
                 samplerate_str = f"{samplerate}→{self.player.sample_rate} • "
             else:
                 samplerate_str = f"{samplerate} Hz • "
-        except:
+        except Exception:
             samplerate_str = ""
         try:
             bitdepth = track["streaminfo"]["bit_depth"]
@@ -1736,7 +1736,7 @@ class MainApplication(tk.Toplevel):
                 bitdepth_str = f"{bitdepth}→16 bit • "
             else:
                 bitdepth_str = f"{bitdepth} bit • "
-        except:
+        except Exception:
             bitdepth_str = ""
         try:
             channels = track["streaminfo"]["channels"]
@@ -1746,7 +1746,7 @@ class MainApplication(tk.Toplevel):
                 channels = "stereo"
             elif channels > 2:
                 channels = f"{channels}ch→stereo"
-        except:
+        except Exception:
             channels = ""
         self.trackinfo["text"] = \
             f"{codec_str}{bitrate_str}{samplerate_str}{bitdepth_str}{channels}"
@@ -1775,7 +1775,7 @@ class MainApplication(tk.Toplevel):
             try:
                 self.player.queue(self.loaded_album.get_audio(
                     self.selected_track_id + 1))
-            except:
+            except Exception:
                 pass
         self.player.play()
 
@@ -2167,11 +2167,17 @@ def run():
         try:
             id_ = 'mycompany.myproduct.subproduct.version' # arbitrary
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(id_)
-        except:
+        except Exception:
             pass
 
-        # Make window DPI unaware (Windows will blurry-scale it if necessary)
-        error_code = ctypes.windll.shcore.SetProcessDpiAwareness(0)
+        if tk.TkVersion < 9:
+            if "--SCALING" in sys.argv:
+                # Make per-monitor DPI aware (Windows will stop bitmap
+                # stretchin and user SCALING is applied)
+                ctypes.windll.shcore.SetProcessDpiAwareness(2)
+            else:
+                # Make DPI unaware (Windows will blurry-scale it if necessary)
+                ctypes.windll.shcore.SetProcessDpiAwareness(0)
 
     elif platform.system() == "Darwin":
         # Change the application menu from "Python" to "ZAP"
@@ -2188,11 +2194,17 @@ def run():
         root = tk.Tk()
 
     #root.geometry(f"{WIDTH}x{HEIGHT}+0+0")
-    if tk.TclVersion >= 9:
-        root.tk.call('tk', 'scaling', SCALING)
+    if platform.system() == "Darwin":
+        for font_name in ["TkDefaultFont", "TkTextFont", "TkFixedFont",
+                          "TkMenuFont"]:
+            f_obj = tkfont.nametofont(font_name)
+            f_obj.configure(size=round(int(f_obj.cget("size")) * SCALING))
     else:
-        dpi = root.winfo_fpixels('1i')
-        root.tk.call('tk', 'scaling', SCALING * (dpi / 72.0))
+        if tk.TkVersion < 9:
+            dpi = 96#root.winfo_fpixels('1i')
+            root.tk.call('tk', 'scaling', SCALING * (dpi / 72.0))
+        else:
+            root.tk.call('tk', 'scaling', SCALING)
 
     root.withdraw()
     app = MainApplication(root)
@@ -2219,7 +2231,7 @@ def run():
                 title="Error opening album",
                 message=f'The file "{sys.argv[-1]}" does not exist!',
                 parent=app)
-    except:
+    except Exception:
         pass
 
     root.mainloop()

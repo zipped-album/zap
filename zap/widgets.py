@@ -206,7 +206,7 @@ class TrackTooltip:
         self.frame.grid(row=0, column=1, sticky="nesw")
         try:
             title = "; ".join(track["tags"]["title"])
-        except:
+        except Exception:
             title = "Unknown Title"
         label = ttk.Label(self.frame, text=title, justify=tk.LEFT,
                           font=self.default_fonts.spec(-2, weight="bold"),
@@ -215,7 +215,7 @@ class TrackTooltip:
         label.grid(row=0, column= 0, padx=2, ipadx=0, ipady=0, sticky="nw")
         try:
             artist = "; ".join(track["tags"]["artist"])
-        except:
+        except Exception:
             artist = "Unknown Artist"
         label = ttk.Label(self.frame,
                           text=artist, justify=tk.LEFT,
@@ -233,7 +233,7 @@ class TrackTooltip:
                                       for x in track["tags"]["year"]])
                 else:
                     raise e
-        except:
+        except Exception:
             year = "Unknown Year"
         label = ttk.Label(self.frame, text=year, justify=tk.LEFT,
                           font=self.default_fonts.spec(-2),
@@ -257,7 +257,7 @@ class TrackTooltip:
             self.tooltip_window.attributes('-topmost',
                                            self.app_always_on_top.get())
             self.tooltip_window.lift()  # work around bug in Tk 8.5.18+
-        except:
+        except Exception:
             pass
 
         self.last_idd = idd

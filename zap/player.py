@@ -66,12 +66,12 @@ def _discover_available_audio_systems():
             d["int32"] =  True
             d["float32"] = True
 
-        except:
+        except Exception:
             pass
 
         available_audio_systems["XAudio2"] = d
 
-    except:
+    except Exception:
         pass
 
     try:  # DirectSound
@@ -107,12 +107,12 @@ def _discover_available_audio_systems():
             d["int32"] =  True
             d["float32"] = True
 
-        except:
+        except Exception:
               pass
 
         available_audio_systems["DirectSound"] = d
 
-    except:
+    except Exception:
         pass
 
     try:  # PulseAudio
@@ -160,12 +160,12 @@ def _discover_available_audio_systems():
             d["int32"] =  True
             d["float32"] = True
 
-        except:
+        except Exception:
             pass
 
         available_audio_systems["PulseAudio"] = d
 
-    except:
+    except Exception:
         pass
 
     try:  # OpenAL
@@ -227,7 +227,7 @@ def _discover_available_audio_systems():
              "float32": float32}
         available_audio_systems["OpenAL"] = d
 
-    except:
+    except Exception:
         pass
 
     # Add Silent output
@@ -398,7 +398,7 @@ class FFmpegSource(FFmpegSource):
 
                 try:
                     sample_bits = self._AV_BITS[sample_format]
-                except:
+                except Exception:
                     raise FFmpegException('Audio format not supported.')
 
                 if not self.fixed_tgt_format:  # Automatic
@@ -589,7 +589,7 @@ class FFmpegSource(FFmpegSource):
     def __del__(self):
         try:
             super().__del__()
-        except:
+        except Exception:
             pass
         if platform.system() == "Windows" and self._tempfile:
             os.remove(self._tempfile.name)

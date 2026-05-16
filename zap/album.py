@@ -168,7 +168,7 @@ def _get_track_metadata_tinytag(f):
             else:
                 try:
                     size = _get_opus_stream_size(f)
-                except:
+                except Exception:
                     size = tt.filesize
                     for image in [tt.images.front_cover, tt.images.back_cover,
                                    tt.images.media, tt.images.other]:
@@ -198,13 +198,13 @@ def _get_track_metadata_mutagen(f):
 
     try:
         metadata["codec"] = re.findall(r'Opus|FLAC', type(m).__name__)[0]
-    except:
+    except Exception:
         pass
 
     if hasattr(m, "pictures"):
         try:
             metadata["pictures"] = m.pictures
-        except:
+        except Exception:
             pass
     elif "metadata_block_picture" in m.tags:
         try:
@@ -212,7 +212,7 @@ def _get_track_metadata_mutagen(f):
             data = base64.b64decode(b64_data)
             picture = mutagen.flac.Picture(data)
             metadata["pictures"] = [picture]
-        except:
+        except Exception:
             pass
 
     for tag in ["bit_depth", "bitrate", "channels", "duration", "sample_rate"]:
@@ -226,7 +226,7 @@ def _get_track_metadata_mutagen(f):
             else:
                 try:
                     size = _get_opus_stream_size(f)
-                except:
+                except Exception:
                     f.seek(0, os.SEEK_END)
                     total_size = f.tell()
                     metadata_size = sum(len(str(v).encode("utf-8")) \
@@ -263,7 +263,7 @@ def _get_track_metadata(f):
     try:
         metadata["tags"]["tracknumber"] = \
             [x.split("/")[0] for x in metadata["tags"]["tracknumber"]]
-    except:
+    except Exception:
         pass
 
     return metadata
@@ -290,7 +290,7 @@ def _create_booklet_page(args):
     page = pdf[args[1]]
     try:
         x, y = page.cropbox[2:]
-    except:
+    except Exception:
         x, y = page.CropBox[2:]
     if x > y:
         factor = 2160 / x
@@ -299,7 +299,7 @@ def _create_booklet_page(args):
     try:
         pix = page.get_pixmap(matrix=fitz.Matrix(factor, factor))
         pix.pil_save(args[2], format="JPEG", optimize=True)
-    except:
+    except Exception:
         pix = page.getPixmap(matrix=fitz.Matrix(factor, factor))
         pix.pillowWrite(args[2], format="JPEG", optimize=True)
     pdf.close()
@@ -362,7 +362,7 @@ def create_zipped_album(directory, filename=None, as_png=False):
                 try:
                     cover = Image.open(first_slide)
                     break
-                except:
+                except Exception:
                     pass
         if int(pil_version.split(".")[0]) < 10:
             cover = cover.resize((1000, 1000), Image.ANTIALIAS)
@@ -442,7 +442,7 @@ class ZippedAlbum:
                     with self._archive.open(track) as f:
                         self._tracks[track] = _get_track_metadata(f)
                         #self._archive.read(track))
-                except:
+                except Exception:
                     pass
             return self._tracks
 
@@ -470,7 +470,7 @@ class ZippedAlbum:
                             try:
                                 dateutil.parser.parse(date.text)
                                 playlist["date"] = date.text
-                            except:
+                            except Exception:
                                 pass
                     tracklist = root.find("{http://xspf.org/ns/0/}trackList")
                     if tracklist is not None and len(tracklist) > 0:
@@ -482,7 +482,7 @@ class ZippedAlbum:
                                 if location.text:
                                     playlist["tracklist"].append(
                                         {"location": location.text})
-                except:
+                except Exception:
                     pass
             self._playlist = playlist
             return self._playlist
@@ -504,7 +504,7 @@ class ZippedAlbum:
                         self._title = "Unknown Album"
                     else:
                         self._title = album[0]
-                except:
+                except Exception:
                     self._title = "Unknown Album"
             return self._title
 
@@ -519,12 +519,12 @@ class ZippedAlbum:
                 try:
                     artists = ["; ".join(v["tags"]["albumartist"]) \
                                for k,v in self.tracks.items()]
-                except:
+                except Exception:
                     artists = []
                     for k,v in self.tracks.items():
                         try:
                             artists.append("; ".join(v["tags"]["artist"]))
-                        except:
+                        except Exception:
                             artists.append("Unknown Artist")
                 if len(set(artists)) > 1:
                     self._artist = "Various Artists"
@@ -560,7 +560,7 @@ class ZippedAlbum:
                                     highest = year
                                 if year < lowest:
                                     lowest = year
-                            except:
+                            except Exception:
                                 pass
                     if lowest > highest:
                         self._year = "Unknown Year"
@@ -568,7 +568,7 @@ class ZippedAlbum:
                         self._year = f"{highest}"
                     else:
                         self._year = f"{lowest}-{highest}"
-                except:
+                except Exception:
                     self._year = "Unknown Year"
             return self._year
 
@@ -581,7 +581,7 @@ class ZippedAlbum:
             for k,v in self.tracks.items():
                 try:
                     artists.append("; ".join(v["tags"]["artist"]))
-                except:
+                except Exception:
                     artists.append("Unknown Artist")
             tracklist = []
             if "tracklist" in self.playlist:
@@ -589,7 +589,7 @@ class ZippedAlbum:
                     filename = x["location"]
                     try:
                         track = self.tracks[filename]
-                    except:
+                    except Exception:
                         if self._alt_encodings:
                             import pkgutil
                             import encodings
@@ -614,7 +614,7 @@ class ZippedAlbum:
                                     track = self.tracks[filename]
                                     continue_ = False
                                     break
-                                except:
+                                except Exception:
                                     pass
                             if continue_:
                                 continue
@@ -632,11 +632,11 @@ class ZippedAlbum:
                     if len(set(artists)) > 1:
                         try:
                             artist = "; ".join(track["tags"]["artist"])
-                        except:
+                        except Exception:
                             artist = "Unknown Artist"
                         try:
                             title = "; ".join(track["tags"]["title"])
-                        except:
+                        except Exception:
                             title = "Unknown Title"
                         name = f"{artist} - {title}"
                         if name == "Unknown Artist - Unknown Title":
@@ -644,7 +644,7 @@ class ZippedAlbum:
                     else:
                         try:
                             name = "; ".join(track["tags"]["title"])
-                        except:
+                        except Exception:
                             name = os.path.splitext(filename)[0]
                     track["display"] = [str(c + 1), name, duration]
                     track["filename"] = filename
@@ -671,11 +671,11 @@ class ZippedAlbum:
                     if len(set(artists)) > 1:
                         try:
                             artist = "; ".join(track["tags"]["artist"])
-                        except:
+                        except Exception:
                             artist = "Unknown Artist"
                         try:
                             title = "; ".join(track["tags"]["title"])
-                        except:
+                        except Exception:
                             title = "Unknown Title"
                         name = f"{artist} - {title}"
                         if name == "Unknown Artist - Unknown Title":
@@ -683,12 +683,12 @@ class ZippedAlbum:
                     else:
                         try:
                             name = "; ".join(track["tags"]["title"])
-                        except:
+                        except Exception:
                             name = os.path.splitext(filename)[0]
                     try:
                         numbers = track["tags"]["tracknumber"]
                         used_numbers.extend(numbers)
-                    except:
+                    except Exception:
                         if self._fix_tracknumbers:
                             for x in range(nr + 1):
                                 if not str(x + 1) in used_numbers:
@@ -701,7 +701,7 @@ class ZippedAlbum:
                         if self._fix_tracknumbers:
                             try:
                                 number = str(int(number))
-                            except:
+                            except Exception:
                                 pass
                         track["display"] = [number, name, duration]
                         track["filename"] = filename
@@ -773,7 +773,7 @@ class ZippedAlbum:
 
         try:
             return self._archive.open(self.tracklist[nr]["filename"])
-        except:
+        except Exception:
             pass
 
     def get_slide(self, nr):
@@ -844,7 +844,7 @@ class ZippedAlbum:
                                         filetype="pdf")
                         try:
                             booklet.insert_pdf(doc)
-                        except:
+                        except Exception:
                             booklet.insertPDF(doc)
                         doc.close()
                 path = os.path.join(self._tmpdir.name, "booklet.pdf")
@@ -871,5 +871,5 @@ class ZippedAlbum:
                                 page_numbers, filepaths)
                 pool.map_async(_create_booklet_page, func_args)
 
-            except:
+            except Exception:
                 pass

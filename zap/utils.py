@@ -44,6 +44,31 @@ except Exception as e:
         pass
     return None
 
+def get_linux_scaling():
+    scaling = 1
+    if "GDK_SCALE" in os.environ:
+        scaling = float(os.environ["GDK_SCALE"])
+    elif "QT_SCREEN_SCALE_FACTORS" in os.environ:
+        try:
+            scaling = float(os.environ["QT_SCREEN_SCALE_FACTORS"].split(
+                ";")[0].split("=")[-1])
+        except Exception:
+            pass
+    else:
+        try:
+            output = subprocess.check_output("xrdb -query", shell=True,
+                                             text=True,
+                                             stderr=subprocess.DEVNULL)
+            for line in output.splitlines():
+                if "Xft.dpi" in line:
+                    system_dpi = float(line.split(":")[-1].strip())
+                    font_ratio = system_dpi / 96.0
+                    if font_ratio != 1.0:
+                        scaling = font_ratio
+        except Exception:
+            pass
+    return scaling
+
 def get_hex_colour(rgb, brightness=None):
         h,l,s = colorsys.rgb_to_hls(rgb[0], rgb[1], rgb[2])
         if brightness is not None:
@@ -181,10 +206,7 @@ class FontBase:
         return self._size
 
     def _px(self, offset):
-        if tk.TclVersion >= 9:
-            return -abs(self.size + offset)
-        else:
-            return self.size + offset
+        return self.size + offset
 
     def spec(self, size_offset=0, weight="normal", slant="roman"):
         return f"{{{self._family}}} {self._px(size_offset)} {weight} {slant}"
