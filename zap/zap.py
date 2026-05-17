@@ -832,8 +832,11 @@ class MainApplication(tk.Toplevel):
         frame_bottom.columnconfigure(2, minsize=int(50 * SCALING))
         frame_bottom.grid_configure(padx=PADDING, pady=PADDING)
 
-        self.style.configure('Play.TButton', font=self.custom_fonts.spec())
-        self.playpause_button = ttk.Button(frame_bottom, text="▶", width=1,
+        monospace_font = tkfont.nametofont("TkFixedFont")
+        #self.style.configure('Play.TButton', font=self.custom_fonts.spec())
+        self.style.configure('Play.TButton', font=monospace_font)
+        self.playpause_button = ttk.Button(frame_bottom, text="\u25B6",#"▶",
+                                           width=2,
                                            style="Play.TButton",
                                            command=self.playpause,
                                            takefocus=0, state="disabled")
@@ -1760,7 +1763,7 @@ class MainApplication(tk.Toplevel):
         tags = [x for x in tags if x != "normal"]
         tags.append("bold")
         self.tree.item(str(self.selected_track_id), tags=tags)
-        self.playpause_button["text"] = "❚❚"
+        self.playpause_button["text"] = "\u25AE\u25AE"#"❚❚"
         self.playpause_label["text"] = "Playing"
         self.playing_track_id = self.selected_track_id
         self.set_title()
@@ -1788,7 +1791,7 @@ class MainApplication(tk.Toplevel):
         tags = [x for x in tags if x != "bold"]
         tags.append("normal")
         self.tree.item(str(self.playing_track_id), tags=tags)
-        self.playpause_button["text"] = "▶"
+        self.playpause_button["text"] = "\u25B6"#"▶"
         self.playpause_label["text"] = "Paused"
         self.playing_track_id = None
         self.set_title()
