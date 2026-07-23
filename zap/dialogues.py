@@ -175,7 +175,7 @@ class SettingsDialogue(DialogueWindow):
             row=3, column=0, sticky="w")
         self.sample_rate = ttk.Combobox(
             audio_frame,
-            values=("Automatic", "8000 Hz", "44100 Hz", "48000 Hz", "88200 Hz",
+            values=("Automatic", "44100 Hz", "48000 Hz", "88200 Hz",
                     "96000 Hz"),
             state="readonly",
         )
