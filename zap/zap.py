@@ -6,10 +6,6 @@ Zipped Album Player.
 
 """
 
-# TODO:
-# - implement fractional font offsets (instead of additive)
-# - create new app icon
-# - have the default album be created from the masks instead of extra image
 
 import os
 import sys
