@@ -14,17 +14,17 @@ license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 name = "Zipped-Album-Player"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dynamic = ["version"]
 classifiers = [
   "Programming Language :: Python :: 3",
   "Operating System :: OS Independent"
 ]
 dependencies = [
-  "pillow>=7.0.0,<11.4",
-  "PyMuPDF>=1.17.4,<1.27",
-  "mutagen==1.47",
-  "pyglet>=2.0.10,<2.2",
+  "pillow>=7.0.0,<13",
+  "PyMuPDF>=1.17.4,<1.29",
+  "mutagen==1.48.1",
+  "pyglet>=2.1.16,<3.1",
   "python-dateutil",
   "tkinterdnd2",
   "pyobjc-framework-Cocoa; sys_platform == 'darwin'"
