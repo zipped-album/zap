@@ -158,7 +158,7 @@ Increase volume: ........................ Shift+Up....... or ........ K
 
 * **Why do I not hear any sound when playing an album in ZAP?**
 
-  ZAP might be set to use the "Silent" audio system. ZAP relies on either Xaudio2 (Windows), DirectSound (Windows), PulseAudio (Linux), or OpenAL (MacOS, Linux, Windows) to play back audio. On Windows, Xaudio2 and DirectSound should both be available by default. On MacOS, OpenAL should be available by default. On Linux, PulseAudio or OpenAL might not be available by default. Install either with your package manager (for instance, install OpenAL on Debian-based distros with `apt install libopenal1`). 
+  ZAP might be set to use the "Silent" audio system. ZAP relies on either Xaudio2 (Windows), DirectSound (Windows), PulseAudio (Linux), or OpenAL (MacOS, Linux, Windows) to play back audio. On Windows, XAudio2 and DirectSound should both be available by default. On MacOS, OpenAL should be available by default. On Linux, PulseAudio or OpenAL might not be available by default. Install either with your package manager (for instance, install OpenAL on Debian-based distros with `apt install libopenal1`). 
   
 * **Why is the bit depth of my tracks reported as "24→16 bit" even though the sample format setting in ZAP is "Automatic"?**
 
