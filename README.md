@@ -150,7 +150,7 @@ Increase volume: ........................ Shift+Up....... or ........ K
   
 * **Where can I find music in a format ZAP plays?**
 
-   ZAP plays [Zipped Albums](https://github.com/zipped-album/zlbm), a simple one-file format for digital audio. Basically, these are ZIP archives of FLAC or Opus files with an optional digital booklet and playlist. Albums downloaded from [Bandcamp](https://bandcamp.com) in FLAC format, for instance, are compatible, but you can also easily create them yourself from your existing music (using ZAP!).
+   ZAP plays [Zipped Albums](https://github.com/zipped-album/zlbm), a simple one-file format for digital audio. Basically, these are ZIP archives of FLAC or Opus files with an optional digital booklet and playlist. Albums downloaded from [Bandcamp](https://bandcamp.com) (in FLAC format) or [Mirlo](https://mirlo.space) (in FLAC or Opus format), for instance, are compatible, but you can also easily create them yourself from your existing music (using ZAP!).
       
 * **Couldn't you provide simple one-click installers/executables for ZAP?**
 
