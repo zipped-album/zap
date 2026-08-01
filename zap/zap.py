@@ -1745,9 +1745,17 @@ class MainApplication(tk.Toplevel):
             if channels == 1:
                 channels = "mono"
             elif channels == 2:
-                channels = "stereo"
+                if self.player.channel_mode not in ("Automatic", "Stereo"):
+                    channels = f"stereo→{self.player.channel_mode.lower()}"
+                else:
+                    channels = "stereo"
             elif channels > 2:
-                channels = f"{channels}ch→stereo"
+                if self.player.channel_mode == "Automatic":
+                    channels = f"{channels}ch→stereo"
+                else:
+                    channels = \
+                        f"{channels}ch→{self.player.channel_mode.lower()}"
+
         except Exception:
             channels = ""
         self.trackinfo["text"] = \
