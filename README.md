@@ -150,7 +150,7 @@ Increase volume: ........................ Shift+Up....... or ........ K
   
 * **Where can I find music in a format ZAP plays?**
 
-   ZAP plays [Zipped Albums](https://github.com/zipped-album/zlbm), a simple one-file format for digital audio. Basically, these are ZIP archives of FLAC or Opus files with an optional digital booklet and playlist. Albums downloaded from [Bandcamp](https://bandcamp.com) in FLAC format, for instance, are compatible, but you can also easily create them yourself from your existing music (using ZAP!).
+   ZAP plays [Zipped Albums](https://github.com/zipped-album/zlbm), a simple one-file format for digital audio. Basically, these are ZIP archives of FLAC or Opus files with an optional digital booklet and playlist. Albums downloaded from [Bandcamp](https://bandcamp.com) (in FLAC format) or [Mirlo](https://mirlo.space) (in FLAC or Opus format), for instance, are compatible, but you can also easily create them yourself from your existing music (using ZAP!).
       
 * **Couldn't you provide simple one-click installers/executables for ZAP?**
 
@@ -158,15 +158,15 @@ Increase volume: ........................ Shift+Up....... or ........ K
 
 * **Why do I not hear any sound when playing an album in ZAP?**
 
-  ZAP might have selected the "Silent" audio driver. ZAP relies on either DirectSound (Windows) or OpenAL (MacOS, Linux, Windows) to play back audio. On Windows, DirectSound should be installed by default. On MacOS, OpenAL should be installed by default. On Linux, OpenAL might not be installed by default. Install it with your package manager (for instance on Debian-based distros with `apt install libopenal1`). 
+  ZAP might be set to use the "Silent" audio system. ZAP relies on either Xaudio2 (Windows), DirectSound (Windows), PulseAudio (Linux), or OpenAL (MacOS, Linux, Windows) to play back audio. On Windows, Xaudio2 and DirectSound should both be available by default. On MacOS, OpenAL should be available by default. On Linux, PulseAudio or OpenAL might not be available by default. Install either with your package manager (for instance, install OpenAL on Debian-based distros with `apt install libopenal1`). 
   
-* **Why is the bit depth of my tracks reported as "24→16 bit"?**
+* **Why is the bit depth of my tracks reported as "24→16 bit" even though the sample format setting in ZAP is "Automatic"?**
 
-  When ZAP uses OpenAL, it will resample to 16 bit during playback for tracks with bit depths higher than that, since OpenAL does not support those yet. This process will involve dithering (with moderate noise shaping) to prevent quantization noise. However, since [distribution/listening formats do not benefit from bit depths higher than 16](https://web.archive.org/web/20190103133529/http://people.xiph.org/~xiphmont/demo/neil-young.html), I suggest to obtain properly mastered 16 bit sources when available.
+  When the audio system ZAP is set to use (e.g. OpenAL) does not support sample formats other than "16-bit", ZAP will automatically resample to 16 bit during playback for tracks with bit depths higher than that. This process will involve dithering (with moderate noise shaping) to prevent quantization noise. However, since [distribution/listening formats do not benefit from bit depths higher than 16](https://web.archive.org/web/20190103133529/http://people.xiph.org/~xiphmont/demo/neil-young.html), I suggest to obtain properly mastered 16 bit sources when available.
   
 * **Why is the channel count on my 5.1 surround track reported as "6ch→stereo"?**
 
-  There is currently no mutli-channel support and everything with more than 2 channels is down-mixed to stereo.
+  There is currently no mutli-channel support and everything with more than 2 channels is down-mixed to stereo (or dual-mono or mono, depending on the channel mode setting).
 
 * **Why is fullscreen mode only working on the first display in a multi-display setup?**
 
