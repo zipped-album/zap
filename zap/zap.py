@@ -647,7 +647,7 @@ class MainApplication(tk.Toplevel):
                 h = self.menu.winfo_height()
                 if not (x <= event.x_root <= x + w and \
                         y <= event.y_root <= y + h):
-                    self.menu_unpost()
+                    self.menu.unpost()
         except Exception:
             pass
 
