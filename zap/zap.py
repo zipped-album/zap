@@ -929,7 +929,7 @@ class MainApplication(tk.Toplevel):
             self.bind(f"<{modifier}-m>", self.toggle_show_menubar)
             self.bind("<F11>", self.toggle_fullscreen)
             self.bind("<F1>", lambda e: AboutDialogue(self))
-            self.bind(f"<{modifier}-,>", lambda e: SettingsWindow(self))
+            self.bind(f"<{modifier}-,>", lambda e: SettingsDialogue(self))
             self.bind(f"<{modifier}-q>", lambda e: self.quit())
 
         self.tree.bind("<Down>", lambda e: None)
