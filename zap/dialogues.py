@@ -21,7 +21,21 @@ class DialogueWindow(tk.Toplevel):
 
     _instances = {}
 
+    def __new__(cls, parent, *args, **kwargs):
+        # Allow only one instance
+        if cls in DialogueWindow._instances and \
+                DialogueWindow._instances[cls].winfo_exists():
+            existing_instance = DialogueWindow._instances[cls]
+            existing_instance.lift()
+            existing_instance.focus_force()
+            return None
+
+        return super().__new__(cls)
+
     def __init__(self, parent):
+
+        DialogueWindow._instances[self.__class__] = self
+
         self.root = parent.nametowidget(".")
         if self.TRANSIENT:
             tk.Toplevel.__init__(self, parent)
@@ -30,21 +44,15 @@ class DialogueWindow(tk.Toplevel):
             tk.Toplevel.__init__(self, self.root)
             self.transient(self.root)
 
-        # Allow only one instance
-        cls = self.__class__
-        if cls in DialogueWindow._instances and \
-                DialogueWindow._instances[cls].winfo_exists():
-            DialogueWindow._instances[cls].lift()
-            DialogueWindow._instances[cls].focus_force()
-            self.destroy()
-            return
-        DialogueWindow._instances[cls] = self
-
         self.parent = parent
         self.withdraw()
 
         self.title(self.TITLE)
         self.resizable(False, False)
+
+        if platform.system() == "Darwin":
+            dialogue_menu = tk.Menu(self)
+            self.config(menu=dialogue_menu)
 
         if self.UNMANAGED:
             self.overrideredirect(True)
@@ -88,9 +96,7 @@ class DialogueWindow(tk.Toplevel):
         self.wait_window()
 
     def close(self, event=None):
-        cls = self.__class__
-        if DialogueWindow._instances.get(cls) == self:
-            del DialogueWindow._instances[cls]
+        DialogueWindow._instances.pop(self.__class__, None)
 
         if self.MODAL:
             if platform.system() == "Windows":
