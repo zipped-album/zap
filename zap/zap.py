@@ -621,15 +621,15 @@ class MainApplication(tk.Toplevel):
                 command=lambda: AboutDialogue(self),
                 accelerator="F1")
 
-        if self.show_menubar.get():
-            self.parent["menu"] = self.menubar
+        #if self.show_menubar.get():
+        #    self.config(menu=self.menubar)
+        self.toggle_show_menubar()
 
         self.menu.add_separator()
         self.menu.add_command(**settings)
         self.menu.add_separator()
         self.menu.add_command(**quit)
 
-        self.config(menu=self.menubar)
 
     def show_context_menu(self, event):
         try:
@@ -886,7 +886,6 @@ class MainApplication(tk.Toplevel):
             child.grid_configure(padx=0, pady=0)
 
     def create_bindings(self):
-
         self.bind("<Configure>", self.schedule_resize)  #self.truncate_titles)
 
         if tkinterdnd2 is not None:
@@ -930,9 +929,8 @@ class MainApplication(tk.Toplevel):
             self.bind(f"<{modifier}-m>", self.toggle_show_menubar)
             self.bind("<F11>", self.toggle_fullscreen)
             self.bind("<F1>", lambda e: AboutDialogue(self))
-
-        #self.bind(f"<{modifier}-,>", lambda e: SettingsWindow(self))
-        #self.bind(f"<{modifier}-q>", lambda e: self.quit())
+            self.bind(f"<{modifier}-,>", lambda e: SettingsWindow(self))
+            self.bind(f"<{modifier}-q>", lambda e: self.quit())
 
         self.tree.bind("<Down>", lambda e: None)
         self.bind("<Down>", lambda e: self.increment_track(1))
@@ -1949,10 +1947,10 @@ class MainApplication(tk.Toplevel):
         if event is not None:  # if triggered by keybinding, update checkbox
             self.show_menubar.set(not self.show_menubar.get())
         if self.show_menubar.get():
-            self.parent["menu"] = self.menubar
+            self.config(menu=self.menubar)
             show_menubar = True
         else:
-            self.parent["menu"] = ""
+            self.config(menu="")
             show_menubar = False
         self.update()
         if not self.config_parser.has_section("VIEW"):
