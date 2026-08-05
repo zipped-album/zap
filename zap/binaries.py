@@ -3,6 +3,7 @@ import sys
 import platform
 import sysconfig
 import ssl
+import truststore
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError
 from tempfile import TemporaryFile
@@ -117,18 +118,19 @@ def download_ffmpeg(progress=None):
     if progress:
         progress(0, 100, "[Connecting to server]")
 
-    for version in (7, 6, 5, 4):
+    for version in (8, 7, 6, 5, 4):
         try:
             filename = f"ffmpeg{version}-{platform}.zip"
             url = f"{url_base}/{filename}"
             r = Request(url, headers={"Accept-Encoding": "gzip; deflate"})
-            ctx = ssl.create_default_context()
+            ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
             if certifi is not None:
                 ctx.load_verify_locations(cafile=certifi.where())
-                if (cafile := os.environ.get('SSL_CERT_FILE')) is not None:
-                    ctx.load_verify_locations(cafile=cafile)
+            if (cafile := os.environ.get('SSL_CERT_FILE')) is not None:
+                ctx.load_verify_locations(cafile=cafile)
             u = urlopen(r, context=ctx)
             success = True
+            break
         except Exception as e:
             if version == 4:
                 raise e
@@ -169,6 +171,7 @@ def download_ffmpeg(progress=None):
         if not os.path.isdir(path):
             os.makedirs(path)
 
+        f.seek(0)
         f_zip = ZipFile(f)
         check = f_zip.testzip()
         assert check is None
