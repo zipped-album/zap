@@ -2,6 +2,7 @@ pillow
 PyMuPDF
 mutagen
 pyglet
+truststore
 python-dateutil
 tkinterdnd2
 certifi
