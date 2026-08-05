@@ -269,8 +269,10 @@ class MainApplication(tk.Toplevel):
         initialdir = self.config_parser.get("GENERAL", "last_open_directory",
                                             fallback=os.path.expanduser("~"))
 
-        allowed_extensions = ".zip .zlbm .png"
-        filetypes = [("Zipped Album files", allowed_extensions),
+        filetypes = [("Zipped Album files", "*.zlbm *.zip *.png"),
+                     ("zlbm files", "*.zlbm"),
+                     ("ZIP files", "*.zip"),
+                     ("PNG files", "*.png"),
                      ("All files", "*.*")]
         was_always_on_top = self.always_on_top.get()
         if was_always_on_top:
