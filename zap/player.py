@@ -252,7 +252,7 @@ class AudioPlayer:
             self.clear_on_queue = False
         for track in tracks:
             if pyglet.version.startswith("3"):
-                _load = pyglet.media._load
+                _load = pyglet.media.load_audio
             else:
                 _load = pyglet.media.load
             source = _load(
@@ -391,7 +391,7 @@ class GaplessAudioPlayer(AudioPlayer):
         was_empty = len(self._sourcegroup._sources) == 0
         for track in tracks:
             if pyglet.version.startswith("3"):
-                _load = pyglet.media._load
+                _load = pyglet.media.load_audio
             else:
                 _load = pyglet.media.load
             self._sourcegroup.add(_load(
